@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -167,6 +168,77 @@ func preserveVersionMetadata(t *testing.T) {
 	})
 }
 
+func TestMainForProject(t *testing.T) {
+	preserveVersionMetadata(t)
+
+	originalArgs := os.Args
+	os.Args = []string{
+		"/usr/local/bin/custom-exporter",
+		"--log.level=error",
+	}
+	t.Cleanup(func() {
+		os.Args = originalArgs
+	})
+
+	feature := &cliTestFeature{}
+	extraFeature := CollectorFeature{
+		Name: "extra",
+		CollectorsFunc: func(ctx FeatureContext) ([]prometheus.Collector, error) {
+			return []prometheus.Collector{
+				newConstCollector(ctx.Namespace+"_extra_value", "Extra value", 2),
+			}, nil
+		},
+	}
+
+	called := false
+	stubListenAndServe(t, func(srv *http.Server, flags *web.FlagConfig, logger *slog.Logger) error {
+		called = true
+
+		if flags == nil {
+			t.Fatal("ToolkitFlags = nil, want toolkit flags")
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /metrics status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		if !strings.Contains(rec.Body.String(), "pkg_exporter_extra_value 2") {
+			t.Fatalf("GET /metrics body missing extra feature metric: %s", rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/", nil)
+		rec = httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "custom-exporter") {
+			t.Fatalf("GET / body missing executable name: %s", body)
+		}
+		if !strings.Contains(body, "Prometheus Package Exporter") {
+			t.Fatalf("GET / body missing description: %s", body)
+		}
+
+		return nil
+	})
+
+	MainForProject(
+		"prometheus-pkg-exporter",
+		"Prometheus Package Exporter",
+		feature,
+		extraFeature,
+	)
+
+	if !called {
+		t.Fatal("listenAndServe was not called")
+	}
+}
+
 type cliTestFeature struct {
 	value *string
 }
@@ -175,7 +247,7 @@ func (f *cliTestFeature) RegisterFlags(app *kingpin.Application) {
 	f.value = app.Flag("demo.value", "Demo value").Default("default").String()
 }
 
-func (f *cliTestFeature) RegisterCollectors(ctx FeatureContext, registry *prometheus.Registry) error {
+func (f *cliTestFeature) RegisterCollectors(_ FeatureContext, _ *prometheus.Registry) error {
 	return nil
 }
 
@@ -191,7 +263,7 @@ func (f *cliIntegrationFeature) RegisterFlags(app *kingpin.Application) {
 	f.value = app.Flag("demo.value", "Demo value").Default("default").String()
 }
 
-func (f *cliIntegrationFeature) RegisterCollectors(ctx FeatureContext, registry *prometheus.Registry) error {
+func (f *cliIntegrationFeature) RegisterCollectors(_ FeatureContext, registry *prometheus.Registry) error {
 	if f.value == nil {
 		return fmt.Errorf("demo.value flag was not registered")
 	}

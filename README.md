@@ -65,6 +65,7 @@ A compiling example feature is available in `examples/custom-feature`.
 `ConfigFromProject` derives exporter name and metric namespace from the Go module/project name.
 For example, `prometheus-pkg-exporter` becomes `pkg_exporter`.
 The default listen address is taken from the first feature that implements `DefaultListenAddress() string`, otherwise it falls back to `:9900`.
+Use `MainForProject(projectName, description, features...)` when an exporter needs explicit project metadata while still deriving the landing page name from the executable.
 Use `Config{...}` directly only when a concrete exporter needs to override that derived metadata.
 
 ## Applying This To New Exporters
@@ -74,7 +75,7 @@ Each exporter can become a thin concrete repository:
 - `prometheus-pkg-exporter`
   - place specific code at `internal/*`
   - exposes a feature that registers
-  - `main.go` only calls `template.MainFromProject(...)`
+  - `main.go` only calls `template.MainFromProject(...)` or `template.MainForProject(...)`
 
 Add this template module as a dependency:
 

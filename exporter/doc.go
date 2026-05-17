@@ -7,10 +7,10 @@
 // and version metadata hydration.
 //
 // Concrete exporters provide domain behavior by implementing Feature and
-// passing one or more features to MainFromProject, Main, RunCLIFromProject, or
-// RunCLI. A feature registers its own flags and collectors; optional interfaces
-// add feature names to logs, report runtime configuration fields, or override
-// the default listen address.
+// passing one or more features to MainFromProject, MainForProject, Main,
+// RunCLIFromProject, or RunCLI. A feature registers its own flags and
+// collectors; optional interfaces add feature names to logs, report runtime
+// configuration fields, or override the default listen address.
 //
 // For programmatic embedding, Run and NewServer construct the same registry and
 // HTTP stack without using process arguments. NewServerChecked and

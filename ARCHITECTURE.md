@@ -16,7 +16,7 @@ Domain logic is supplied by external `exporter.Feature` implementations.
 
 ## Data Flow
 
-1. A concrete exporter calls `exporter.MainFromProject(feature)` or `exporter.Main(exporter.Config{...})` when it needs explicit metadata overrides.
+1. A concrete exporter calls `exporter.MainFromProject(features...)`, `exporter.MainForProject(projectName, description, features...)`, or `exporter.Main(exporter.Config{...})` when it needs explicit metadata overrides.
 2. The template registers common CLI flags and asks each feature to register its own flags.
 3. After parsing, the template creates the logger, runtime options, and Prometheus registry.
 4. The registry always receives:
@@ -69,7 +69,7 @@ Domain-source health belongs in feature collectors.
 
 The public extension surface is:
 
-- `Main`, `MainFromProject`, `RunCLI`, and `RunCLIFromProject`
+- `Main`, `MainFromProject`, `MainForProject`, `RunCLI`, and `RunCLIFromProject`
 - `Config`, `ConfigFromProject`, and `ConfigForProject`
 - `Options`, `Run`, `MustRun`, `NewServer`, and `NewServerChecked`
 - `HandlerOptions`, `NewHandler`, and `NewHandlerChecked`

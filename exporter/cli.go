@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/promslog"
@@ -20,13 +22,35 @@ type cliConfig struct {
 
 func Main(cfg Config) {
 	if err := RunCLI(cfg, os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
 func MainFromProject(features ...Feature) {
 	Main(ConfigFromProject(features...))
+}
+
+// MainForProject runs a concrete exporter with explicit project metadata.
+func MainForProject(projectName, description string, features ...Feature) {
+	cfg := ConfigForProject(projectName, features...)
+	cfg.Name = executableName(os.Args, cfg.Name)
+	cfg.Description = description
+	Main(cfg)
+}
+
+func executableName(args []string, fallback string) string {
+	if len(args) == 0 {
+		return fallback
+	}
+
+	name := filepath.Base(args[0])
+
+	if name == "." || strings.TrimSpace(name) == "" {
+		return fallback
+	}
+
+	return name
 }
 
 func RunCLIFromProject(args []string, features ...Feature) error {
