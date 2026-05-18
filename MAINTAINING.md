@@ -15,6 +15,10 @@ make check
 `make check` runs formatting checks, `go vet`, `staticcheck`, coverage threshold
 checks, binary smoke tests, and race tests.
 
+Concrete exporter scaffolding lives in the separate
+`prometheus-exporter-scaffold` repository. The release workflow opens a pull
+request there after a new module tag is published.
+
 When Docker is available, validate the runtime image separately:
 
 ```bash

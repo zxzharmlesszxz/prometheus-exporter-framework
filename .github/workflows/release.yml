@@ -13,6 +13,7 @@ permissions:
 
 env:
   COVERAGE_THRESHOLD: "90.0"
+  SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
 
 jobs:
   release:
@@ -79,3 +80,96 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: gh release create "$VERSION" --verify-tag --generate-notes --title "$VERSION"
+
+  update-scaffold:
+    name: Update exporter scaffold
+    runs-on: ubuntu-latest
+    needs:
+      - release
+
+    steps:
+      - name: Validate scaffold token
+        env:
+          SCAFFOLD_REPO_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
+        run: |
+          if [ -z "$SCAFFOLD_REPO_TOKEN" ]; then
+            echo "SCAFFOLD_REPO_TOKEN is required to update $SCAFFOLD_REPOSITORY"
+            exit 1
+          fi
+
+      - name: Checkout scaffold
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.SCAFFOLD_REPOSITORY }}
+          token: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
+          path: scaffold
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: scaffold/template/go.mod
+          cache: true
+          cache-dependency-path: scaffold/template/go.sum
+
+      - name: Update framework version
+        working-directory: scaffold
+        env:
+          VERSION: ${{ inputs.version }}
+          GOPROXY: direct
+        run: |
+          if [ -f framework.version ]; then
+            echo "$VERSION" > framework.version
+          fi
+
+          go mod edit \
+            -require=github.com/zxzharmlesszxz/prometheus-template-exporter@"$VERSION" \
+            template/go.mod
+          (cd template && go mod tidy)
+
+          find . -type f \( -name '*.md' -o -name '*.go' -o -name '*.mod' \) -print0 \
+            | xargs -0 perl -0pi -e 's#github\.com/zxzharmlesszxz/prometheus-template-exporter v[0-9A-Za-z.+-]+#github.com/zxzharmlesszxz/prometheus-template-exporter $ENV{VERSION}#g'
+
+      - name: Verify rendered scaffold
+        working-directory: scaffold
+        env:
+          GOPROXY: direct
+        run: |
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          scripts/render.sh \
+            --project-name prometheus-demo-exporter \
+            --module github.com/zxzharmlesszxz/prometheus-demo-exporter \
+            --description "Prometheus Demo Exporter" \
+            --feature-name demo \
+            --namespace demo_exporter \
+            --port 9888 \
+            --target-dir "$tmp"
+          (cd "$tmp" && go mod tidy && make go-check GO=go GOFMT=gofmt)
+
+      - name: Open scaffold update pull request
+        working-directory: scaffold
+        env:
+          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "scaffold already uses $VERSION"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          branch="update-template-exporter-${VERSION#v}"
+          base="$(gh repo view "$SCAFFOLD_REPOSITORY" --json defaultBranchRef -q .defaultBranchRef.name)"
+          git switch -c "$branch"
+          git add .
+          git commit -m "scaffold: update framework to $VERSION"
+          git push --force-with-lease origin "$branch"
+
+          gh pr create \
+            --repo "$SCAFFOLD_REPOSITORY" \
+            --base "$base" \
+            --head "$branch" \
+            --title "Update prometheus-template-exporter to $VERSION" \
+            --body "Updates generated exporters to use prometheus-template-exporter $VERSION."
