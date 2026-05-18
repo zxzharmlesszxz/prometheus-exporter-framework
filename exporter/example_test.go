@@ -12,16 +12,16 @@ import (
 )
 
 func ExampleConfigForProject() {
-	cfg := exporter.ConfigForProject("git.example.net/platform/prometheus-pkg-exporter")
+	cfg := exporter.ConfigForProject("git.example.net/platform/prometheus-demo-exporter")
 
 	fmt.Println(cfg.Name)
 	fmt.Println(cfg.Namespace)
 	fmt.Println(cfg.Description)
 
 	// Output:
-	// pkg_exporter
-	// pkg_exporter
-	// Prometheus Pkg Exporter
+	// demo_exporter
+	// demo_exporter
+	// Prometheus Demo Exporter
 }
 
 func ExampleCollectorFeature() {

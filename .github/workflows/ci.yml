@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  COVERAGE_THRESHOLD: "90.0"
+
+jobs:
+  module-checks:
+    name: Module checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify module files
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Check formatting
+        run: make fmt-check GO=go GOFMT=gofmt
+
+      - name: Vet
+        run: make vet GO=go
+
+      - name: Staticcheck
+        run: make staticcheck GO=go
+
+      - name: Test with coverage
+        run: make coverage-check GO=go COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
+
+      - name: Test with race detector
+        run: make test-race GO=go
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
+          if-no-files-found: ignore

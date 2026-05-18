@@ -63,7 +63,7 @@ func main() {
 A compiling example feature is available in `examples/custom-feature`.
 
 `ConfigFromProject` derives exporter name and metric namespace from the Go module/project name.
-For example, `prometheus-pkg-exporter` becomes `pkg_exporter`.
+For example, `prometheus-demo-exporter` becomes `demo_exporter`.
 The default listen address is taken from the first feature that implements `DefaultListenAddress() string`, otherwise it falls back to `:9900`.
 Use `MainForProject(projectName, description, features...)` when an exporter needs explicit project metadata while still deriving the landing page name from the executable.
 Use `Config{...}` directly only when a concrete exporter needs to override that derived metadata.
@@ -72,7 +72,7 @@ Use `Config{...}` directly only when a concrete exporter needs to override that 
 
 Each exporter can become a thin concrete repository:
 
-- `prometheus-pkg-exporter`
+- `prometheus-demo-exporter`
   - place specific code at `internal/*`
   - exposes a feature that registers
   - `main.go` only calls `template.MainFromProject(...)` or `template.MainForProject(...)`
@@ -131,6 +131,12 @@ Endpoints:
 - `http://localhost:9900/metrics`
 - `http://localhost:9900/healthz`
 
+## Grafana Dashboard
+
+`examples/grafana/prometheus-template-exporter-overview.json` is a starter dashboard for common exporter health.
+It uses Prometheus scrape metadata plus the template's Go, process, and `*_build_info` metrics.
+Domain-specific feature dashboards should live in concrete exporter repositories.
+
 ## Tests
 
 ```bash
@@ -153,6 +159,14 @@ Docker runtime image when Docker is available. It is optional and not part of
 the default check target.
 
 See `MAINTAINING.md` for maintenance notes.
+
+## Releases
+
+Releases are manual because tags are public Go module versions for downstream exporters.
+Pushes and pull requests only run CI checks.
+
+To publish a module version, run the `Release` workflow from the default branch and enter a tag such as `v0.1.0`.
+The workflow runs `make check`, creates an annotated git tag, and creates a GitHub Release without binary or Docker artifacts.
 
 ## Version Metadata
 

@@ -205,7 +205,7 @@ func TestMainForProject(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("GET /metrics status = %d, want %d", rec.Code, http.StatusOK)
 		}
-		if !strings.Contains(rec.Body.String(), "pkg_exporter_extra_value 2") {
+		if !strings.Contains(rec.Body.String(), "custom_exporter_extra_value 2") {
 			t.Fatalf("GET /metrics body missing extra feature metric: %s", rec.Body.String())
 		}
 
@@ -220,7 +220,7 @@ func TestMainForProject(t *testing.T) {
 		if !strings.Contains(body, "custom-exporter") {
 			t.Fatalf("GET / body missing executable name: %s", body)
 		}
-		if !strings.Contains(body, "Prometheus Package Exporter") {
+		if !strings.Contains(body, "Prometheus Custom Exporter") {
 			t.Fatalf("GET / body missing description: %s", body)
 		}
 
@@ -228,14 +228,65 @@ func TestMainForProject(t *testing.T) {
 	})
 
 	MainForProject(
-		"prometheus-pkg-exporter",
-		"Prometheus Package Exporter",
+		"prometheus-custom-exporter",
+		"Prometheus Custom Exporter",
 		feature,
 		extraFeature,
 	)
 
 	if !called {
 		t.Fatal("listenAndServe was not called")
+	}
+}
+
+func TestExecutableName(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		args     []string
+		fallback string
+		want     string
+	}{
+		{
+			name:     "absolute path",
+			args:     []string{"/usr/local/bin/prometheus-template-exporter"},
+			fallback: "template_exporter",
+			want:     "prometheus-template-exporter",
+		},
+		{
+			name:     "renamed binary",
+			args:     []string{"renamed-template-exporter"},
+			fallback: "template_exporter",
+			want:     "renamed-template-exporter",
+		},
+		{
+			name:     "missing args",
+			args:     nil,
+			fallback: "template_exporter",
+			want:     "template_exporter",
+		},
+		{
+			name:     "empty arg",
+			args:     []string{""},
+			fallback: "template_exporter",
+			want:     "template_exporter",
+		},
+		{
+			name:     "blank arg",
+			args:     []string{"   "},
+			fallback: "template_exporter",
+			want:     "template_exporter",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := executableName(tc.args, tc.fallback); got != tc.want {
+				t.Fatalf("executableName(%q, %q) = %q, want %q", tc.args, tc.fallback, got, tc.want)
+			}
+		})
 	}
 }
 

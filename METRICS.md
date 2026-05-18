@@ -39,9 +39,7 @@ It returns `200 OK` while the process is serving requests.
 
 Feature-specific source health should be exposed by the feature itself, for example:
 
-- `pkg_exporter_last_collection_success`
-- `puppet_config_up`
-- `puppetfile_up`
+- `exporter_up`
 
 ## Business Metrics
 

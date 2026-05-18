@@ -36,20 +36,20 @@ func TestConfigNormalizedUsesNameAsNamespace(t *testing.T) {
 func TestConfigForProject(t *testing.T) {
 	t.Parallel()
 
-	feature := CollectorFeature{Name: "demo", DefaultListenAddressValue: ":9888"}
-	cfg := ConfigForProject("git.example.net/platform/prometheus-pkg-exporter", feature)
+	feature := CollectorFeature{Name: "demo", DefaultListenAddressValue: ":9999"}
+	cfg := ConfigForProject("git.example.net/platform/prometheus-demo-exporter", feature)
 
-	if cfg.Name != "pkg_exporter" {
-		t.Fatalf("Name = %q, want %q", cfg.Name, "pkg_exporter")
+	if cfg.Name != "demo_exporter" {
+		t.Fatalf("Name = %q, want %q", cfg.Name, "demo_exporter")
 	}
-	if cfg.Namespace != "pkg_exporter" {
-		t.Fatalf("Namespace = %q, want %q", cfg.Namespace, "pkg_exporter")
+	if cfg.Namespace != "demo_exporter" {
+		t.Fatalf("Namespace = %q, want %q", cfg.Namespace, "demo_exporter")
 	}
-	if cfg.Description != "Prometheus Pkg Exporter" {
-		t.Fatalf("Description = %q, want %q", cfg.Description, "Prometheus Pkg Exporter")
+	if cfg.Description != "Prometheus Demo Exporter" {
+		t.Fatalf("Description = %q, want %q", cfg.Description, "Prometheus Demo Exporter")
 	}
-	if cfg.DefaultListenAddress != ":9888" {
-		t.Fatalf("DefaultListenAddress = %q, want %q", cfg.DefaultListenAddress, ":9888")
+	if cfg.DefaultListenAddress != ":9999" {
+		t.Fatalf("DefaultListenAddress = %q, want %q", cfg.DefaultListenAddress, ":9999")
 	}
 	if len(cfg.Features) != 1 {
 		t.Fatalf("Features len = %d, want 1", len(cfg.Features))
@@ -59,7 +59,7 @@ func TestConfigForProject(t *testing.T) {
 func TestConfigForProjectFallsBackToDefaultListenAddress(t *testing.T) {
 	t.Parallel()
 
-	cfg := ConfigForProject("prometheus-pkg-exporter")
+	cfg := ConfigForProject("prometheus-demo-exporter")
 	if cfg.DefaultListenAddress != defaultListenAddress {
 		t.Fatalf("DefaultListenAddress = %q, want %q", cfg.DefaultListenAddress, defaultListenAddress)
 	}
@@ -70,7 +70,7 @@ func TestConfigForProjectSkipsBlankFeatureListenAddress(t *testing.T) {
 
 	blank := CollectorFeature{Name: "blank", DefaultListenAddressValue: "  "}
 	nonBlank := CollectorFeature{Name: "non_blank", DefaultListenAddressValue: ":9777"}
-	cfg := ConfigForProject("prometheus-demo-exporter", blank, nonBlank)
+	cfg := ConfigForProject("prometheus-non_blank-exporter", blank, nonBlank)
 
 	if cfg.DefaultListenAddress != ":9777" {
 		t.Fatalf("DefaultListenAddress = %q, want %q", cfg.DefaultListenAddress, ":9777")
@@ -84,7 +84,7 @@ func TestExporterNameFromProject(t *testing.T) {
 		project string
 		want    string
 	}{
-		{project: "prometheus-pkg-exporter", want: "pkg_exporter"},
+		{project: "prometheus-template-exporter", want: "template_exporter"},
 		{project: "example.com/team/prometheus-puppetfile-exporter", want: "puppetfile_exporter"},
 		{project: "custom-exporter", want: "custom_exporter"},
 		{project: "123-custom", want: "_123_custom_exporter"},

@@ -61,9 +61,9 @@ configs:
       apiVersion: 1
 
       providers:
-        - name: Pkg Exporter
+        - name: Template Exporter
           orgId: 1
-          folder: Debian
+          folder: Template
           type: file
           disableDeletion: true
           editable: false
