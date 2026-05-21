@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 env:
   COVERAGE_THRESHOLD: "90.0"
   SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
@@ -20,8 +24,8 @@ defaults:
     shell: bash
 
 jobs:
-  release:
-    name: Release Go module
+  tag-module:
+    name: Tag Go module
     runs-on: ubuntu-24.04
     container:
       image: golang:1.26.3-alpine
@@ -29,7 +33,7 @@ jobs:
     steps:
       - name: Prepare Alpine
         shell: sh
-        run: apk add --no-cache bash build-base git github-cli make
+        run: apk add --no-cache bash build-base git github-cli make perl
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -55,15 +59,59 @@ jobs:
             exit 1
           fi
 
-      - name: Check tag does not exist
+      - name: Validate scaffold access
         env:
-          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
         run: |
-          git fetch --tags --force
-          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-            echo "tag already exists: $VERSION"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "SCAFFOLD_REPO_TOKEN is required to update $SCAFFOLD_REPOSITORY"
             exit 1
           fi
+
+          gh repo view "$SCAFFOLD_REPOSITORY" --json nameWithOwner -q .nameWithOwner >/dev/null
+
+      - name: Check version is releasable
+        id: version_state
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --tags --force origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release already exists: $VERSION"
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            tag_type="$(git cat-file -t "refs/tags/$VERSION")"
+            if [ "$tag_type" != "tag" ]; then
+              echo "existing tag must be annotated: $VERSION"
+              exit 1
+            fi
+
+            tag_target="$(git rev-parse "refs/tags/$VERSION^{}")"
+            if [ "$tag_target" != "$GITHUB_SHA" ]; then
+              if ! git merge-base --is-ancestor "$tag_target" "origin/$DEFAULT_BRANCH"; then
+                echo "existing tag $VERSION at $tag_target is not reachable from origin/$DEFAULT_BRANCH"
+                exit 1
+              fi
+            fi
+
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            echo "release_commit=$tag_target" >> "$GITHUB_OUTPUT"
+            echo "Reusing existing tag $VERSION at $tag_target"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+            echo "release_commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tagged commit
+        if: steps.version_state.outputs.tag_exists == 'true'
+        env:
+          RELEASE_COMMIT: ${{ steps.version_state.outputs.release_commit }}
+        run: git switch --detach "$RELEASE_COMMIT"
 
       - name: Verify module files
         run: |
@@ -78,7 +126,52 @@ jobs:
       - name: Run checks
         run: make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
 
+      - name: Checkout scaffold for preflight
+        if: steps.version_state.outputs.tag_exists != 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.SCAFFOLD_REPOSITORY }}
+          token: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
+          path: scaffold-preflight
+
+      - name: Trust scaffold preflight checkout directory
+        if: steps.version_state.outputs.tag_exists != 'true'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold-preflight"
+
+      - name: Preflight scaffold update
+        if: steps.version_state.outputs.tag_exists != 'true'
+        working-directory: scaffold-preflight
+        env:
+          FRAMEWORK_PATH: ${{ github.workspace }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -f framework.version ]; then
+            echo "$VERSION" > framework.version
+          fi
+
+          go mod edit \
+            -require=github.com/zxzharmlesszxz/prometheus-exporter-framework@"$VERSION" \
+            -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" \
+            template/go.mod
+          (cd template && go mod tidy)
+
+          find . -type f \( -name '*.md' -o -name '*.go' -o -name '*.mod' \) -print0 \
+            | xargs -0 perl -0pi -e 's#github\.com/zxzharmlesszxz/prometheus-exporter-framework v[0-9A-Za-z.+-]+#github.com/zxzharmlesszxz/prometheus-exporter-framework $ENV{VERSION}#g'
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          scripts/render.sh \
+            --project-name prometheus-demo-exporter \
+            --module github.com/zxzharmlesszxz/prometheus-demo-exporter \
+            --description "Prometheus Demo Exporter" \
+            --feature-name demo \
+            --namespace demo_exporter \
+            --port 9888 \
+            --target-dir "$tmp"
+          (cd "$tmp" && go mod edit -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" && go mod tidy && make go-check GO=go GOFMT=gofmt)
+
       - name: Create annotated tag
+        if: steps.version_state.outputs.tag_exists != 'true'
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -87,19 +180,13 @@ jobs:
           git tag -a "$VERSION" -m "Release $VERSION"
           git push origin "$VERSION"
 
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
-        run: gh release create "$VERSION" --verify-tag --generate-notes --title "$VERSION"
-
   update-scaffold:
     name: Update exporter scaffold
     runs-on: ubuntu-24.04
     container:
       image: golang:1.26.3-alpine
     needs:
-      - release
+      - tag-module
 
     steps:
       - name: Prepare Alpine
@@ -176,10 +263,24 @@ jobs:
 
           branch="update-exporter-framework-${VERSION#v}"
           base="$(gh repo view "$SCAFFOLD_REPOSITORY" --json defaultBranchRef -q .defaultBranchRef.name)"
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || true
           git switch -c "$branch"
           git add .
           git commit -m "scaffold: update framework to $VERSION"
           git push --force-with-lease origin "$branch"
+
+          existing_pr="$(
+            gh pr list \
+              --repo "$SCAFFOLD_REPOSITORY" \
+              --state open \
+              --json headRefName,url \
+              -q ".[] | select(.headRefName == \"$branch\") | .url" \
+              | head -n 1
+          )"
+          if [ -n "$existing_pr" ]; then
+            echo "scaffold update pull request already exists: $existing_pr"
+            exit 0
+          fi
 
           gh pr create \
             --repo "$SCAFFOLD_REPOSITORY" \
@@ -187,3 +288,22 @@ jobs:
             --head "$branch" \
             --title "Update prometheus-exporter-framework to $VERSION" \
             --body "Updates generated exporters to use prometheus-exporter-framework $VERSION."
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.26.3-alpine
+    needs:
+      - update-scaffold
+
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash github-cli
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$VERSION"
