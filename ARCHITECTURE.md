@@ -13,6 +13,8 @@ Domain logic is supplied by external `exporter.Feature` implementations.
   Minimal binary that runs the shell without domain features.
 - `exporter`
   Public framework package used by concrete exporters.
+- `exporter/featurekit`
+  Typed generated-feature lifecycle helpers used by scaffolded exporters.
 
 ## Data Flow
 
@@ -48,6 +50,7 @@ Optional interfaces:
 
 The helper `CollectorFeature` can be used when a feature only needs callbacks instead of a dedicated type.
 The helper `SnapshotCollector` can be used when a feature needs a typed snapshot cache, background refresh loop, and common collection health metrics.
+The `exporter/featurekit` subpackage can be used by scaffolded exporters that want a typed feature spec instead of hand-written flag, runtime-config, collector-registration, and collector-startup boilerplate.
 The package also exposes small value/lifecycle helpers (`BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScrapeMetrics`, `NormalizeDuration`, and `RegisterAndStartCollectors`) plus the `exporter/exportertest` package for shared exporter test assertions.
 
 ## Common HTTP Semantics
@@ -82,6 +85,8 @@ The public extension surface is:
 - `NewRegistry`, `RegisterCollectors`, and `RegisterAndStartCollectors`
 - `ExporterNameFromProject` and `DescriptionFromProject`
 - `HydrateVersionMetadata` and `ResolveVersionMetadata`
+
+The `exporter/featurekit` subpackage is public support for generated exporters and exposes `FeatureSpec`, `Feature`, `SmokeSpec`, `SnapshotCollectorOptions`, `ResolveSnapshotCollectorOptions`, and `NewSnapshotCollector`.
 
 The `exporter/exportertest` subpackage is public test support for downstream exporters.
 

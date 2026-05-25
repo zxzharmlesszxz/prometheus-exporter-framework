@@ -16,6 +16,9 @@
 // configuration fields, or override the default listen address.
 // SnapshotCollector is available for features that need a background refresh
 // worker, cached scrape-time snapshots, and common collection health metrics.
+// The exporter/featurekit subpackage provides typed lifecycle helpers for
+// generated exporters that want to avoid copying feature and collector
+// boilerplate in each concrete repository.
 // FileScrapeMetrics is available for file-backed scrape-time collectors that
 // share mtime, scrape duration, and read or parse error counters.
 //

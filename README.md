@@ -11,6 +11,7 @@ This repository owns the stable exporter shell:
 - Prometheus registry wiring
 - `build_info`, Go runtime, and process collectors
 - optional snapshot cache and background refresh collector helper
+- typed generated-feature lifecycle helpers
 - small helpers for common metric values and exporter tests
 - version metadata hydration from linker flags or Go build info
 
@@ -89,6 +90,14 @@ collector := framework.NewSnapshotCollector(framework.SnapshotCollectorOptions[D
 
 `SnapshotCollector` owns the background refresh worker, scrape-time cache fallback, and common collection metrics.
 The concrete exporter still owns the domain snapshot type and all business metrics.
+
+## Generated Feature Helpers
+
+Generated exporters can import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/featurekit`.
+That subpackage wraps the common generated-exporter pattern: a typed domain config, common refresh flag, runtime config, snapshotter factory, collector factory, and collector startup lifecycle.
+
+Concrete exporters still own their domain flags, snapshot type, metric descriptors, and snapshot-to-metrics adapter.
+The scaffold owns only the glue that passes a typed `featurekit.FeatureSpec` to the framework.
 
 ## Utility Helpers
 
