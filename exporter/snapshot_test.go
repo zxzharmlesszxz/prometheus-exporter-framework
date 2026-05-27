@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest"
 )
@@ -187,6 +188,22 @@ func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
 	}
 }
 
+func TestSnapshotCollectorUsesCustomHelpText(t *testing.T) {
+	t.Parallel()
+
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[int]{
+		Namespace:                    "demo_exporter",
+		LastCollectionSuccessHelp:    "Custom last collection success help.",
+		LastCollectionTimestampHelp:  "Custom last collection timestamp help.",
+		LastSuccessfulCollectionHelp: "Custom last successful collection help.",
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	assertMetricHelp(t, families, "demo_exporter_last_collection_success", "Custom last collection success help.")
+	assertMetricHelp(t, families, "demo_exporter_last_collection_timestamp_seconds", "Custom last collection timestamp help.")
+	assertMetricHelp(t, families, "demo_exporter_last_successful_collection_timestamp_seconds", "Custom last successful collection help.")
+}
+
 func TestSnapshotCollectorStartIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -204,6 +221,15 @@ func TestSnapshotCollectorStartIsIdempotent(t *testing.T) {
 	collector.Start(ctx)
 	if !collector.backgroundStarted {
 		t.Fatal("backgroundStarted = false, want true")
+	}
+}
+
+func assertMetricHelp(t *testing.T, families []*dto.MetricFamily, name string, want string) {
+	t.Helper()
+
+	got := exportertest.MetricFamily(t, families, name).GetHelp()
+	if got != want {
+		t.Fatalf("%s help = %q, want %q", name, got, want)
 	}
 }
 

@@ -77,6 +77,41 @@ func TestFileScrapeMetricsAllowsOptionalCounters(t *testing.T) {
 	exportertest.AssertMetricValue(t, families, "optional_file_mtime_seconds", nil, 456)
 }
 
+func TestFileScrapeMetricsUsesDefaultHooks(t *testing.T) {
+	t.Parallel()
+
+	path := t.TempDir() + "/input.txt"
+	if err := os.WriteFile(path, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	mtimeDesc := prometheus.NewDesc("default_file_mtime_seconds", "File mtime.", nil, nil)
+	durationDesc := prometheus.NewDesc("default_file_scrape_duration_seconds", "File scrape duration.", nil, nil)
+	collector := fileScrapeTestCollector{
+		metrics: FileScrapeMetrics{
+			Path:               path,
+			MTimeDesc:          mtimeDesc,
+			ScrapeDurationDesc: durationDesc,
+		},
+	}
+
+	families := exportertest.RegisterAndGather(t, collector)
+	mtime, ok := exportertest.MetricValue(families, "default_file_mtime_seconds", nil)
+	if !ok {
+		t.Fatal("default_file_mtime_seconds metric not found")
+	}
+	if mtime <= 0 {
+		t.Fatalf("default_file_mtime_seconds = %v, want positive value", mtime)
+	}
+	duration, ok := exportertest.MetricValue(families, "default_file_scrape_duration_seconds", nil)
+	if !ok {
+		t.Fatal("default_file_scrape_duration_seconds metric not found")
+	}
+	if duration < 0 {
+		t.Fatalf("default_file_scrape_duration_seconds = %v, want non-negative value", duration)
+	}
+}
+
 func TestFileScraperScrape(t *testing.T) {
 	t.Parallel()
 
