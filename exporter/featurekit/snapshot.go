@@ -182,6 +182,12 @@ func newSnapshotMetrics[S any](ctx SnapshotMetricsContext[S], metricsFunc Snapsh
 
 type noopSnapshotMetrics[S any] struct{}
 
-func (noopSnapshotMetrics[S]) Describe(chan<- *prometheus.Desc) {}
+func (noopSnapshotMetrics[S]) Describe(ch chan<- *prometheus.Desc) {
+	_ = ch
+}
 
-func (noopSnapshotMetrics[S]) Collect(chan<- prometheus.Metric, S, time.Time) {}
+func (noopSnapshotMetrics[S]) Collect(ch chan<- prometheus.Metric, snapshot S, now time.Time) {
+	_ = ch
+	_ = snapshot
+	_ = now
+}
