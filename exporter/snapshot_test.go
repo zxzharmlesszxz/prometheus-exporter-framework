@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -158,6 +159,51 @@ func TestSnapshotCollectorInitializesAfterBackgroundStartBeforeFirstRefresh(t *t
 	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, float64(now.Unix()))
 	if calls := snapshotter.calls.Load(); calls != 1 {
 		t.Fatalf("snapshot calls = %d, want 1", calls)
+	}
+}
+
+func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
+	t.Parallel()
+
+	logged := atomic.Int32{}
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[int]{
+		ErrorLogFunc: func(logger *slog.Logger, snapshot int) {
+			if logger == nil {
+				t.Fatal("logger = nil, want default logger")
+			}
+			if snapshot != 0 {
+				t.Fatalf("snapshot = %d, want zero value", snapshot)
+			}
+			logged.Add(1)
+		},
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "exporter_last_collection_success", nil, 0)
+	exportertest.AssertMetricValue(t, families, "exporter_last_collection_timestamp_seconds", nil, 0)
+	exportertest.AssertMetricValue(t, families, "exporter_last_successful_collection_timestamp_seconds", nil, 0)
+	if logged.Load() != 1 {
+		t.Fatalf("error logs = %d, want 1", logged.Load())
+	}
+}
+
+func TestSnapshotCollectorStartIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Snapshotter:     newFakeSnapshotter(testSnapshot{AttemptTime: now, Success: true, Value: 1}),
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	collector.Start(ctx)
+	collector.Start(ctx)
+	if !collector.backgroundStarted {
+		t.Fatal("backgroundStarted = false, want true")
 	}
 }
 

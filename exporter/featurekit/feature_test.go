@@ -172,3 +172,66 @@ func TestFeatureReportsValidationError(t *testing.T) {
 		t.Fatalf("RegisterCollectors() error = %v, want %v", err, wantErr)
 	}
 }
+
+func TestFeatureDefaultsNoopCollectorAndStaticSmokeSpec(t *testing.T) {
+	t.Parallel()
+
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		Smoke: SmokeSpec{
+			ServerArgs:    []string{"--demo.target=node-a"},
+			WantMetrics:   []string{"demo_value 1"},
+			RejectMetrics: []string{"demo_value 0"},
+		},
+	})
+	if got := feature.FeatureName(); got != "exporter" {
+		t.Fatalf("FeatureName() = %q, want exporter", got)
+	}
+
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	feature.RegisterFlags(app)
+	if _, err := app.Parse(nil); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	config := feature.RuntimeConfig()
+	if got := exportertest.RuntimeConfigValue(t, config, "refresh_interval"); got != framework.DefaultSnapshotRefreshInterval {
+		t.Fatalf("refresh_interval = %v, want %v", got, framework.DefaultSnapshotRefreshInterval)
+	}
+	if err := feature.RegisterCollectors(framework.FeatureContext{}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v, want nil", err)
+	}
+
+	smoke := feature.SmokeSpec()
+	if len(smoke.ServerArgs) != 1 || smoke.ServerArgs[0] != "--demo.target=node-a" {
+		t.Fatalf("SmokeSpec().ServerArgs = %v, want static server args", smoke.ServerArgs)
+	}
+	if len(smoke.WantMetrics) != 1 || smoke.WantMetrics[0] != "demo_value 1" {
+		t.Fatalf("SmokeSpec().WantMetrics = %v, want static wanted metric", smoke.WantMetrics)
+	}
+	if len(smoke.RejectMetrics) != 1 || smoke.RejectMetrics[0] != "demo_value 0" {
+		t.Fatalf("SmokeSpec().RejectMetrics = %v, want static rejected metric", smoke.RejectMetrics)
+	}
+}
+
+func TestFeatureReportsSnapshotterError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("snapshotter failed")
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName:             "demo",
+		FallbackRefreshInterval: time.Minute,
+		NewSnapshotterFunc: func(CollectorContext[testConfig]) (framework.Snapshotter[testSnapshot], error) {
+			return nil, wantErr
+		},
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			t.Fatal("NewCollectorFunc was called")
+			return nil
+		},
+	})
+
+	err := feature.RegisterCollectors(framework.FeatureContext{}, prometheus.NewRegistry())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("RegisterCollectors() error = %v, want %v", err, wantErr)
+	}
+}

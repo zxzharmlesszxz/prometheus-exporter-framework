@@ -1,6 +1,8 @@
 package exporter
 
 import (
+	"errors"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -73,6 +75,130 @@ func TestFileScrapeMetricsAllowsOptionalCounters(t *testing.T) {
 
 	families := exportertest.RegisterAndGather(t, collector)
 	exportertest.AssertMetricValue(t, families, "optional_file_mtime_seconds", nil, 456)
+}
+
+func TestFileScraperScrape(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("read failed")
+	parseErr := errors.New("parse failed")
+
+	for _, tc := range []struct {
+		name            string
+		readFile        FileReadFunc
+		parse           func([]byte) error
+		wantUp          bool
+		wantErr         error
+		wantReadErrors  uint64
+		wantParseErrors uint64
+	}{
+		{
+			name: "success",
+			readFile: func(path string) ([]byte, error) {
+				return []byte("payload"), nil
+			},
+			parse: func(content []byte) error {
+				return nil
+			},
+			wantUp: true,
+		},
+		{
+			name: "read error",
+			readFile: func(string) ([]byte, error) {
+				return nil, readErr
+			},
+			parse: func([]byte) error {
+				return nil
+			},
+			wantErr:        readErr,
+			wantReadErrors: 1,
+		},
+		{
+			name: "parse error",
+			readFile: func(string) ([]byte, error) {
+				return []byte("payload"), nil
+			},
+			parse: func([]byte) error {
+				return parseErr
+			},
+			wantErr:         parseErr,
+			wantParseErrors: 1,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Unix(1_700_000_000, 0)
+			readErrors := atomic.Uint64{}
+			parseErrors := atomic.Uint64{}
+			scraper := FileScraper{
+				ReadErrorsTotal:  &readErrors,
+				ParseErrorsTotal: &parseErrors,
+				Now: func() time.Time {
+					current := now
+					now = now.Add(125 * time.Millisecond)
+					return current
+				},
+				ReadFile: tc.readFile,
+				FileModificationSeconds: func(path string) float64 {
+					if path != "/tmp/input" {
+						t.Fatalf("mtime path = %q, want /tmp/input", path)
+					}
+					return 123
+				},
+			}
+
+			result := scraper.Scrape("/tmp/input", tc.parse)
+			if result.Path != "/tmp/input" {
+				t.Fatalf("Path = %q, want /tmp/input", result.Path)
+			}
+			if result.Up != tc.wantUp {
+				t.Fatalf("Up = %v, want %v", result.Up, tc.wantUp)
+			}
+			if !errors.Is(result.Err, tc.wantErr) {
+				t.Fatalf("Err = %v, want %v", result.Err, tc.wantErr)
+			}
+			if result.MTimeSeconds != 123 {
+				t.Fatalf("MTimeSeconds = %v, want 123", result.MTimeSeconds)
+			}
+			if result.ReadErrorsTotal != tc.wantReadErrors {
+				t.Fatalf("ReadErrorsTotal = %d, want %d", result.ReadErrorsTotal, tc.wantReadErrors)
+			}
+			if result.ParseErrorsTotal != tc.wantParseErrors {
+				t.Fatalf("ParseErrorsTotal = %d, want %d", result.ParseErrorsTotal, tc.wantParseErrors)
+			}
+			if result.ScrapeDurationSeconds != 0.125 {
+				t.Fatalf("ScrapeDurationSeconds = %v, want 0.125", result.ScrapeDurationSeconds)
+			}
+		})
+	}
+}
+
+func TestFileScraperScrapeUsesDefaultHooks(t *testing.T) {
+	t.Parallel()
+
+	path := t.TempDir() + "/input.txt"
+	if err := os.WriteFile(path, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result := (FileScraper{}).Scrape(path, nil)
+	if !result.Up {
+		t.Fatalf("Up = false, want true; err = %v", result.Err)
+	}
+	if result.MTimeSeconds <= 0 {
+		t.Fatalf("MTimeSeconds = %v, want positive value", result.MTimeSeconds)
+	}
+	if result.ReadErrorsTotal != 0 {
+		t.Fatalf("ReadErrorsTotal = %d, want 0", result.ReadErrorsTotal)
+	}
+	if result.ParseErrorsTotal != 0 {
+		t.Fatalf("ParseErrorsTotal = %d, want 0", result.ParseErrorsTotal)
+	}
+	if result.ScrapeDurationSeconds < 0 {
+		t.Fatalf("ScrapeDurationSeconds = %v, want non-negative value", result.ScrapeDurationSeconds)
+	}
 }
 
 type fileScrapeTestCollector struct {

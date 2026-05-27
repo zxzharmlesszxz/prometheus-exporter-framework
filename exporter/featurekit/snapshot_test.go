@@ -1,13 +1,18 @@
 package featurekit
 
 import (
+	"io"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
+	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest"
 )
 
 func TestResolveSnapshotCollectorOptionsDefaults(t *testing.T) {
@@ -84,5 +89,231 @@ demo_value 7
 		"demo_exporter_last_successful_collection_timestamp_seconds",
 	); err != nil {
 		t.Fatalf("CollectAndCompare() error = %v", err)
+	}
+}
+
+func TestNewSnapshotFeatureSpecWiresSnapshotCollector(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	logCalls := atomic.Int32{}
+	feature := NewFeature(NewSnapshotFeatureSpec(SnapshotFeatureSpec[testConfig, testSnapshot]{
+		Options: SpecOptions{
+			FeatureName:            "demo",
+			DefaultRefreshInterval: 45 * time.Second,
+		},
+		DefaultRefreshInterval: time.Minute,
+		Config:                 testConfig{target: "default"},
+		RegisterFlagsFunc: func(app *kingpin.Application, ctx FlagContext, config *testConfig) {
+			if ctx.FeatureName != "demo" {
+				t.Fatalf("flag FeatureName = %q, want demo", ctx.FeatureName)
+			}
+			if ctx.DefaultRefreshInterval != 45*time.Second {
+				t.Fatalf("flag DefaultRefreshInterval = %v, want 45s", ctx.DefaultRefreshInterval)
+			}
+			app.Flag(ctx.FeatureName+".target", "Demo target.").Default(config.target).StringVar(&config.target)
+		},
+		ValidateConfigFunc: func(config testConfig) error {
+			if config.target != "node-a" {
+				t.Fatalf("target = %q, want node-a", config.target)
+			}
+			return nil
+		},
+		NewSnapshotterFunc: func(ctx CollectorContext[testConfig]) (framework.Snapshotter[testSnapshot], error) {
+			if ctx.FeatureName != "demo" {
+				t.Fatalf("collector FeatureName = %q, want demo", ctx.FeatureName)
+			}
+			if ctx.Framework.Namespace != "demo_exporter" {
+				t.Fatalf("Framework.Namespace = %q, want demo_exporter", ctx.Framework.Namespace)
+			}
+			if ctx.Config.target != "node-a" {
+				t.Fatalf("collector target = %q, want node-a", ctx.Config.target)
+			}
+			if ctx.RefreshInterval != 30*time.Second {
+				t.Fatalf("RefreshInterval = %v, want 30s", ctx.RefreshInterval)
+			}
+			return testSnapshotter{snapshot: testSnapshot{attemptTime: now, success: true, value: 9}}, nil
+		},
+		MetricsFunc: func(ctx SnapshotMetricsContext[testSnapshot]) SnapshotMetrics[testSnapshot] {
+			if ctx.FeatureName != "demo" {
+				t.Fatalf("metrics FeatureName = %q, want demo", ctx.FeatureName)
+			}
+			if ctx.Namespace != "demo_exporter" {
+				t.Fatalf("metrics Namespace = %q, want demo_exporter", ctx.Namespace)
+			}
+			if ctx.Snapshotter == nil {
+				t.Fatal("metrics Snapshotter = nil, want snapshotter")
+			}
+			return testSnapshotMetrics{
+				desc:     prometheus.NewDesc("demo_observed_value", "Demo observed value.", nil, nil),
+				logCalls: &logCalls,
+			}
+		},
+		StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+			return framework.SnapshotStatus{
+				AttemptTime: snapshot.attemptTime,
+				Success:     snapshot.success,
+			}
+		},
+		RuntimeConfigFunc: func(ctx RuntimeConfigContext[testConfig]) []any {
+			return []any{"target", ctx.Config.target}
+		},
+		Smoke: SmokeSpec{
+			WantMetrics: []string{"demo_observed_value 9"},
+		},
+	}))
+
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	feature.RegisterFlags(app)
+	if _, err := app.Parse([]string{"--demo.refresh-interval=30s", "--demo.target=node-a"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	config := feature.RuntimeConfig()
+	if got := exportertest.RuntimeConfigValue(t, config, "refresh_interval"); got != 30*time.Second {
+		t.Fatalf("refresh_interval = %v, want 30s", got)
+	}
+	if got := exportertest.RuntimeConfigValue(t, config, "target"); got != "node-a" {
+		t.Fatalf("target = %v, want node-a", got)
+	}
+
+	registry := prometheus.NewRegistry()
+	err := feature.RegisterCollectors(framework.FeatureContext{
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Namespace: "demo_exporter",
+	}, registry)
+	if err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	exportertest.WaitForMetricValue(t, registry, "demo_observed_value", nil, 9)
+	exportertest.WaitForMetricValue(t, registry, "demo_exporter_last_collection_success", nil, 1)
+	if logCalls.Load() == 0 {
+		t.Fatal("LogSnapshotError was not called")
+	}
+
+	smoke := feature.SmokeSpec()
+	if len(smoke.WantMetrics) != 1 || smoke.WantMetrics[0] != "demo_observed_value 9" {
+		t.Fatalf("SmokeSpec().WantMetrics = %v, want demo_observed_value 9", smoke.WantMetrics)
+	}
+}
+
+func TestNewSnapshotMetricsCollectorUsesExplicitErrorLogFunc(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	explicitLogCalls := atomic.Int32{}
+	metricsLogCalls := atomic.Int32{}
+	collector := NewSnapshotMetricsCollector(SnapshotMetricsCollectorOptions[testSnapshot]{
+		SnapshotCollectorOptions: SnapshotCollectorOptions[testSnapshot]{
+			FeatureName:     "demo",
+			Namespace:       "demo_exporter",
+			Snapshotter:     testSnapshotter{snapshot: testSnapshot{attemptTime: now, success: true, value: 11}},
+			RefreshInterval: time.Minute,
+			StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+				return framework.SnapshotStatus{
+					AttemptTime: snapshot.attemptTime,
+					Success:     snapshot.success,
+				}
+			},
+			ErrorLogFunc: func(logger *slog.Logger, snapshot testSnapshot) {
+				if logger == nil {
+					t.Fatal("logger = nil, want default logger")
+				}
+				if snapshot.value != 11 {
+					t.Fatalf("snapshot value = %v, want 11", snapshot.value)
+				}
+				explicitLogCalls.Add(1)
+			},
+			Now: func() time.Time {
+				return now
+			},
+		},
+		MetricsFunc: func(SnapshotMetricsContext[testSnapshot]) SnapshotMetrics[testSnapshot] {
+			return testSnapshotMetrics{
+				desc:     prometheus.NewDesc("demo_explicit_value", "Demo explicit value.", nil, nil),
+				logCalls: &metricsLogCalls,
+			}
+		},
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_explicit_value", nil, 11)
+	if explicitLogCalls.Load() != 1 {
+		t.Fatalf("explicit log calls = %d, want 1", explicitLogCalls.Load())
+	}
+	if metricsLogCalls.Load() != 0 {
+		t.Fatalf("metrics log calls = %d, want 0", metricsLogCalls.Load())
+	}
+}
+
+func TestNewSnapshotMetricsDefaultsToNoopMetrics(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotMetricsCollector(SnapshotMetricsCollectorOptions[testSnapshot]{
+		SnapshotCollectorOptions: SnapshotCollectorOptions[testSnapshot]{
+			FeatureName:     "demo",
+			Namespace:       "demo_exporter",
+			Snapshotter:     testSnapshotter{snapshot: testSnapshot{attemptTime: now, success: true, value: 13}},
+			RefreshInterval: time.Minute,
+			StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+				return framework.SnapshotStatus{
+					AttemptTime: snapshot.attemptTime,
+					Success:     snapshot.success,
+				}
+			},
+			Now: func() time.Time {
+				return now
+			},
+		},
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 1)
+	if _, ok := exportertest.MetricValue(families, "demo_observed_value", nil); ok {
+		t.Fatal("demo_observed_value was exported, want only collection metrics")
+	}
+}
+
+func TestNewSnapshotMetricsFallsBackWhenFactoryReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	metrics := newSnapshotMetrics(SnapshotMetricsContext[testSnapshot]{
+		FeatureName: "demo",
+		Namespace:   "demo_exporter",
+	}, func(SnapshotMetricsContext[testSnapshot]) SnapshotMetrics[testSnapshot] {
+		return nil
+	})
+
+	descCh := make(chan *prometheus.Desc, 1)
+	metrics.Describe(descCh)
+	if len(descCh) != 0 {
+		t.Fatalf("Describe emitted %d descriptors, want 0", len(descCh))
+	}
+
+	metricCh := make(chan prometheus.Metric, 1)
+	metrics.Collect(metricCh, testSnapshot{}, time.Now())
+	if len(metricCh) != 0 {
+		t.Fatalf("Collect emitted %d metrics, want 0", len(metricCh))
+	}
+}
+
+type testSnapshotMetrics struct {
+	desc     *prometheus.Desc
+	logCalls *atomic.Int32
+}
+
+func (m testSnapshotMetrics) Describe(ch chan<- *prometheus.Desc) {
+	ch <- m.desc
+}
+
+func (m testSnapshotMetrics) Collect(ch chan<- prometheus.Metric, snapshot testSnapshot, _ time.Time) {
+	ch <- prometheus.MustNewConstMetric(m.desc, prometheus.GaugeValue, snapshot.value)
+}
+
+func (m testSnapshotMetrics) LogSnapshotError(_ *slog.Logger, _ testSnapshot) {
+	if m.logCalls != nil {
+		m.logCalls.Add(1)
 	}
 }
