@@ -89,3 +89,7 @@ func NewContractSnapshotFeatureSpec[C any, S any](options SpecOptions, contract 
 		SmokeFunc:              contract.SmokeSpec,
 	})
 }
+
+func NewContractFeature[C any, S any](options SpecOptions, contract FeatureContract[C, S]) *Feature[C, S] {
+	return NewFeature(NewContractSnapshotFeatureSpec[C, S](options, contract))
+}

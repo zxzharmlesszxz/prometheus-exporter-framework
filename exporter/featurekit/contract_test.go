@@ -103,6 +103,20 @@ func TestNewContractSnapshotFeatureSpecAcceptsNilContract(t *testing.T) {
 	}
 }
 
+func TestNewContractFeatureBuildsFeature(t *testing.T) {
+	t.Parallel()
+
+	feature := NewContractFeature[contractTestConfig, contractTestSnapshot](SpecOptions{
+		FeatureName: "contract",
+	}, contractTestFeature{})
+	if got := feature.FeatureName(); got != "contract" {
+		t.Fatalf("FeatureName() = %q, want contract", got)
+	}
+	if got := feature.SmokeSpec().WantMetrics; !reflect.DeepEqual(got, []string{"contract_metric 1"}) {
+		t.Fatalf("SmokeSpec().WantMetrics = %v, want contract metric", got)
+	}
+}
+
 type contractTestFeature struct {
 	FeatureDefaults[contractTestConfig, contractTestSnapshot]
 }
