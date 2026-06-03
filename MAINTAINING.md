@@ -20,11 +20,13 @@ rendering a demo exporter against the current framework checkout.
 Concrete exporter scaffolding lives in the separate
 `prometheus-exporter-scaffold` repository. The release workflow verifies the
 scaffold against the current framework checkout before publishing a new module
-tag, then opens a scaffold update pull request and creates the GitHub Release
-only after that scaffold update succeeds.
+tag, creates the GitHub Release, and then opens an issue in the scaffold
+repository asking it to consume the published framework version. The framework
+repository must not push scaffold dependency updates directly because the
+scaffold is a downstream consumer of this module.
 If a module tag exists without a GitHub Release, rerun the workflow with the same
-version to verify the tagged commit and retry the scaffold update plus release
-publication.
+version to verify the tagged commit, create the GitHub Release, and retry the
+scaffold notification issue.
 
 When Docker is available, validate the runtime image separately:
 

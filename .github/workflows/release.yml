@@ -64,7 +64,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "SCAFFOLD_REPO_TOKEN is required to update $SCAFFOLD_REPOSITORY"
+            echo "SCAFFOLD_REPO_TOKEN is required to verify and notify $SCAFFOLD_REPOSITORY"
             exit 1
           fi
 
@@ -138,7 +138,7 @@ jobs:
         if: steps.version_state.outputs.tag_exists != 'true'
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold-preflight"
 
-      - name: Preflight scaffold update
+      - name: Preflight scaffold consumption
         if: steps.version_state.outputs.tag_exists != 'true'
         working-directory: scaffold-preflight
         env:
@@ -180,122 +180,13 @@ jobs:
           git tag -a "$VERSION" -m "Release $VERSION"
           git push origin "$VERSION"
 
-  update-scaffold:
-    name: Update exporter scaffold
-    runs-on: ubuntu-24.04
-    container:
-      image: golang:1.26.3-alpine
-    needs:
-      - tag-module
-
-    steps:
-      - name: Prepare Alpine
-        shell: sh
-        run: apk add --no-cache bash build-base git github-cli make perl
-
-      - name: Validate scaffold token
-        env:
-          SCAFFOLD_REPO_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-        run: |
-          if [ -z "$SCAFFOLD_REPO_TOKEN" ]; then
-            echo "SCAFFOLD_REPO_TOKEN is required to update $SCAFFOLD_REPOSITORY"
-            exit 1
-          fi
-
-      - name: Checkout scaffold
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.SCAFFOLD_REPOSITORY }}
-          token: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-          path: scaffold
-
-      - name: Trust scaffold checkout directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold"
-
-      - name: Update framework version
-        working-directory: scaffold
-        env:
-          VERSION: ${{ inputs.version }}
-          GOPROXY: direct
-        run: |
-          if [ -f framework.version ]; then
-            echo "$VERSION" > framework.version
-          fi
-
-          go mod edit \
-            -require=github.com/zxzharmlesszxz/prometheus-exporter-framework@"$VERSION" \
-            template/go.mod
-          (cd template && go mod tidy)
-
-          find . -type f \( -name '*.md' -o -name '*.go' -o -name '*.mod' \) -print0 \
-            | xargs -0 perl -0pi -e 's#github\.com/zxzharmlesszxz/prometheus-exporter-framework v[0-9A-Za-z.+-]+#github.com/zxzharmlesszxz/prometheus-exporter-framework $ENV{VERSION}#g'
-
-      - name: Verify rendered scaffold
-        working-directory: scaffold
-        env:
-          GOPROXY: direct
-        run: |
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-          scripts/render.sh \
-            --project-name prometheus-demo-exporter \
-            --module github.com/zxzharmlesszxz/prometheus-demo-exporter \
-            --description "Prometheus Demo Exporter" \
-            --feature-name demo \
-            --namespace demo_exporter \
-            --port 9888 \
-            --target-dir "$tmp"
-          (cd "$tmp" && go mod tidy && make go-check GO=go GOFMT=gofmt)
-
-      - name: Open scaffold update pull request
-        working-directory: scaffold
-        env:
-          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "scaffold already uses $VERSION"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          branch="update-exporter-framework-${VERSION#v}"
-          base="$(gh repo view "$SCAFFOLD_REPOSITORY" --json defaultBranchRef -q .defaultBranchRef.name)"
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || true
-          git switch -c "$branch"
-          git add .
-          git commit -m "scaffold: update framework to $VERSION"
-          git push --force-with-lease origin "$branch"
-
-          existing_pr="$(
-            gh pr list \
-              --repo "$SCAFFOLD_REPOSITORY" \
-              --state open \
-              --json headRefName,url \
-              -q ".[] | select(.headRefName == \"$branch\") | .url" \
-              | head -n 1
-          )"
-          if [ -n "$existing_pr" ]; then
-            echo "scaffold update pull request already exists: $existing_pr"
-            exit 0
-          fi
-
-          gh pr create \
-            --repo "$SCAFFOLD_REPOSITORY" \
-            --base "$base" \
-            --head "$branch" \
-            --title "Update prometheus-exporter-framework to $VERSION" \
-            --body "Updates generated exporters to use prometheus-exporter-framework $VERSION."
-
   publish-release:
     name: Publish GitHub release
     runs-on: ubuntu-24.04
     container:
       image: golang:1.26.3-alpine
     needs:
-      - update-scaffold
+      - tag-module
 
     steps:
       - name: Prepare Alpine
@@ -307,3 +198,68 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$VERSION"
+
+  notify-scaffold:
+    name: Notify exporter scaffold
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.26.3-alpine
+    needs:
+      - publish-release
+
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash github-cli
+
+      - name: Open scaffold update issue
+        env:
+          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "SCAFFOLD_REPO_TOKEN is required to open an issue in $SCAFFOLD_REPOSITORY"
+            exit 1
+          fi
+
+          title="Update prometheus-exporter-framework to $VERSION"
+          existing_issue="$(
+            gh issue list \
+              --repo "$SCAFFOLD_REPOSITORY" \
+              --state open \
+              --search "$VERSION in:title" \
+              --json title,url \
+              --jq ".[] | select(.title == \"$title\") | .url" \
+              | head -n 1
+          )"
+          if [ -n "$existing_issue" ]; then
+            echo "scaffold update issue already exists: $existing_issue"
+            exit 0
+          fi
+
+          body="$(mktemp)"
+          cat > "$body" <<EOF
+          prometheus-exporter-framework $VERSION has been released.
+
+          Release: $RELEASE_URL
+
+          Please update the scaffold as the framework consumer:
+
+          - framework.version
+          - template/go.mod
+          - template/go.sum
+          - generated-template files that need API cleanup
+
+          Suggested validation:
+
+          - make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD=90.0
+          - render a demo exporter and run make go-check
+
+          The framework release workflow already ran scaffold preflight against the release candidate. This issue is the handoff for the scaffold repository to consume the published tag.
+          EOF
+
+          gh issue create \
+            --repo "$SCAFFOLD_REPOSITORY" \
+            --title "$title" \
+            --body-file "$body"
