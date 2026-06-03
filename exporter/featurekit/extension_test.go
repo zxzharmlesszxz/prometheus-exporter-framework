@@ -1,6 +1,7 @@
 package featurekit
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
 
 type extensionTestConfig struct {
@@ -21,6 +23,14 @@ type extensionTestFileConfig struct {
 
 type extensionTestSnapshot struct {
 	Value float64
+}
+
+type extensionTestEngine struct {
+	snapshot extensionTestSnapshot
+}
+
+func (e extensionTestEngine) Snapshot(context.Context, time.Time) extensionTestSnapshot {
+	return e.snapshot
 }
 
 func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
@@ -138,6 +148,61 @@ func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 	}
 	if got := feature.SmokeSpec(); !reflect.DeepEqual(got, wantSmoke) {
 		t.Fatalf("SmokeSpec() = %+v, want %+v", got, wantSmoke)
+	}
+}
+
+func TestNewSnapshotExtensionFeatureSpecUsesEngineHooks(t *testing.T) {
+	t.Parallel()
+
+	defaultEngine := extensionTestEngine{snapshot: extensionTestSnapshot{Value: 1}}
+	extension := SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+		DefaultSnapshotEngine: defaultEngine,
+		NewSnapshotEngineFunc: func(ctx CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
+			if ctx.FeatureName != "demo" {
+				t.Fatalf("FeatureName = %q, want demo", ctx.FeatureName)
+			}
+			return extensionTestEngine{snapshot: extensionTestSnapshot{Value: 2}}, nil
+		},
+	}
+
+	if got := snapshotExtensionDefaultSnapshotter(extension).Snapshot(context.Background(), time.Unix(1700000000, 0)).Value; got != 1 {
+		t.Fatalf("DefaultSnapshotter snapshot value = %v, want 1", got)
+	}
+	newSnapshotter := snapshotExtensionNewSnapshotter(extension)
+	snapshotter, err := newSnapshotter(CollectorContext[extensionTestConfig]{FeatureName: "demo"})
+	if err != nil {
+		t.Fatalf("NewSnapshotterFunc() error = %v", err)
+	}
+	if got := snapshotter.Snapshot(context.Background(), time.Unix(1700000000, 0)).Value; got != 2 {
+		t.Fatalf("NewSnapshotterFunc snapshot value = %v, want 2", got)
+	}
+}
+
+func TestNewSnapshotExtensionFeatureSpecPrefersExplicitSnapshotterHooks(t *testing.T) {
+	t.Parallel()
+
+	extension := SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+		DefaultSnapshotEngine: extensionTestEngine{snapshot: extensionTestSnapshot{Value: 1}},
+		NewSnapshotEngineFunc: func(CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
+			t.Fatal("NewSnapshotEngineFunc was called, want explicit NewSnapshotterFunc")
+			return nil, nil
+		},
+		DefaultSnapshotter: extensionTestEngine{snapshot: extensionTestSnapshot{Value: 3}},
+		NewSnapshotterFunc: func(CollectorContext[extensionTestConfig]) (framework.Snapshotter[extensionTestSnapshot], error) {
+			return extensionTestEngine{snapshot: extensionTestSnapshot{Value: 4}}, nil
+		},
+	}
+
+	if got := snapshotExtensionDefaultSnapshotter(extension).Snapshot(context.Background(), time.Unix(1700000000, 0)).Value; got != 3 {
+		t.Fatalf("DefaultSnapshotter snapshot value = %v, want 3", got)
+	}
+	newSnapshotter := snapshotExtensionNewSnapshotter(extension)
+	snapshotter, err := newSnapshotter(CollectorContext[extensionTestConfig]{FeatureName: "demo"})
+	if err != nil {
+		t.Fatalf("NewSnapshotterFunc() error = %v", err)
+	}
+	if got := snapshotter.Snapshot(context.Background(), time.Unix(1700000000, 0)).Value; got != 4 {
+		t.Fatalf("NewSnapshotterFunc snapshot value = %v, want 4", got)
 	}
 }
 

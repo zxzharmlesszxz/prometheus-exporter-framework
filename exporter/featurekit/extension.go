@@ -26,6 +26,8 @@ type SnapshotFeatureExtension[C any, S any] struct {
 	ValidateConfigFunc     func(config C) error
 	ResolveConfigFunc      FeatureConfigResolver[C]
 	RuntimeConfigFunc      func(ctx RuntimeConfigContext[C], config C) []any
+	NewSnapshotEngineFunc  SnapshotEngineFunc[C, S]
+	DefaultSnapshotEngine  SnapshotEngine[S]
 	NewSnapshotterFunc     func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
 	DefaultSnapshotter     framework.Snapshotter[S]
 	MetricsFunc            SnapshotMetricsFunc[S]
@@ -42,8 +44,8 @@ func NewSnapshotExtensionFeatureSpec[C any, S any](options SpecOptions, extensio
 		Config:                 defaultFeatureConfig(extension.DefaultConfigFunc),
 		RegisterFlagsFunc:      snapshotExtensionRegisterFlags(extension),
 		ValidateConfigFunc:     extension.ValidateConfigFunc,
-		NewSnapshotterFunc:     extension.NewSnapshotterFunc,
-		DefaultSnapshotter:     extension.DefaultSnapshotter,
+		NewSnapshotterFunc:     snapshotExtensionNewSnapshotter(extension),
+		DefaultSnapshotter:     snapshotExtensionDefaultSnapshotter(extension),
 		MetricsFunc:            extension.MetricsFunc,
 		StatusFunc:             extension.StatusFunc,
 		ErrorLogFunc:           extension.ErrorLogFunc,
@@ -55,6 +57,25 @@ func NewSnapshotExtensionFeatureSpec[C any, S any](options SpecOptions, extensio
 
 func NewSnapshotExtensionFeature[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) *Feature[C, S] {
 	return NewFeature(NewSnapshotExtensionFeatureSpec(options, extension))
+}
+
+func snapshotExtensionNewSnapshotter[C any, S any](extension SnapshotFeatureExtension[C, S]) func(ctx CollectorContext[C]) (framework.Snapshotter[S], error) {
+	if extension.NewSnapshotterFunc != nil {
+		return extension.NewSnapshotterFunc
+	}
+	if extension.NewSnapshotEngineFunc == nil {
+		return nil
+	}
+	return func(ctx CollectorContext[C]) (framework.Snapshotter[S], error) {
+		return extension.NewSnapshotEngineFunc(ctx)
+	}
+}
+
+func snapshotExtensionDefaultSnapshotter[C any, S any](extension SnapshotFeatureExtension[C, S]) framework.Snapshotter[S] {
+	if extension.DefaultSnapshotter != nil {
+		return extension.DefaultSnapshotter
+	}
+	return extension.DefaultSnapshotEngine
 }
 
 func DefaultFeatureConfigFile(featureName string) string {

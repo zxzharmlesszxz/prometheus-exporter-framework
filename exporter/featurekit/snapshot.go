@@ -1,6 +1,7 @@
 package featurekit
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -17,6 +18,17 @@ type SnapshotMetrics[S any] interface {
 type SnapshotErrorLogger[S any] interface {
 	LogSnapshotError(logger *slog.Logger, snapshot S)
 }
+
+// SnapshotEngine is the feature-owned snapshot source used by snapshot features.
+// It is intentionally the same shape as exporter.Snapshotter so feature packages
+// can expose domain engines without local gatherer wrappers.
+type SnapshotEngine[S any] interface {
+	Snapshot(context.Context, time.Time) S
+}
+
+// SnapshotEngineFunc constructs a feature-owned snapshot engine from resolved
+// collector context.
+type SnapshotEngineFunc[C any, S any] func(ctx CollectorContext[C]) (SnapshotEngine[S], error)
 
 type SnapshotMetricsContext[S any] struct {
 	FeatureName string
