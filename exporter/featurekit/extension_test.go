@@ -23,6 +23,47 @@ type extensionTestSnapshot struct {
 	Value float64
 }
 
+func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
+	t.Parallel()
+
+	type configFlagTestConfig struct {
+		Name    string
+		Targets []string
+	}
+
+	config := configFlagTestConfig{Name: "default"}
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	RegisterFeatureConfigFlagSpecs(app, FlagContext{FeatureName: "demo"}, &config, []FeatureConfigFlagSpec[configFlagTestConfig]{
+		{
+			Name:        "name",
+			Help:        "Demo name",
+			Default:     "default",
+			Placeholder: "example",
+			Bind: func(flag *kingpin.FlagClause, config *configFlagTestConfig) {
+				flag.StringVar(&config.Name)
+			},
+		},
+		{
+			Name: "target",
+			Help: "Demo target",
+			Bind: func(flag *kingpin.FlagClause, config *configFlagTestConfig) {
+				flag.StringsVar(&config.Targets)
+			},
+		},
+	})
+
+	if _, err := app.Parse([]string{"--demo.name=custom", "--demo.target=node-a", "--demo.target=node-b"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if config.Name != "custom" {
+		t.Fatalf("Name = %q, want custom", config.Name)
+	}
+	if want := []string{"node-a", "node-b"}; !reflect.DeepEqual(config.Targets, want) {
+		t.Fatalf("Targets = %v, want %v", config.Targets, want)
+	}
+}
+
 func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 	t.Parallel()
 
