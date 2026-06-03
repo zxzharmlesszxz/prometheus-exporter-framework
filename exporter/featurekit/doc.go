@@ -8,6 +8,6 @@
 // FeatureContract and FeatureDefaults provide the stable contract shape for
 // generated exporters. Concrete feature packages embed the defaults and override
 // feature-specific behavior in their own files, while the framework keeps the
-// standard method set, spec wiring, feature construction, and config flag spec
-// registration reusable.
+// standard method set, spec wiring, feature construction, config flag spec
+// registration, and metric descriptor loading reusable.
 package featurekit
