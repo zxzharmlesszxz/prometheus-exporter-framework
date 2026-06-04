@@ -22,6 +22,7 @@ type SnapshotFeatureExtension[C any, S any] struct {
 	DefaultRefreshInterval time.Duration
 	DefaultConfigFunc      func() C
 	ConfigFileFunc         FeatureConfigFileFunc[C]
+	ConfigFlagSpecs        []FeatureConfigFlagSpec[C]
 	RegisterFlagsFunc      func(app *kingpin.Application, ctx FlagContext, config *C)
 	ValidateConfigFunc     func(config C) error
 	ResolveConfigFunc      FeatureConfigResolver[C]
@@ -151,6 +152,9 @@ func snapshotExtensionRegisterFlags[C any, S any](extension SnapshotFeatureExten
 					"YAML config file. If unset, "+DefaultFeatureConfigFile(ctx.FeatureName)+" is used when it exists",
 				).StringVar(configFile)
 			}
+		}
+		if len(extension.ConfigFlagSpecs) > 0 {
+			RegisterFeatureConfigFlagSpecs(app, ctx, config, extension.ConfigFlagSpecs)
 		}
 		if extension.RegisterFlagsFunc != nil {
 			extension.RegisterFlagsFunc(app, ctx, config)

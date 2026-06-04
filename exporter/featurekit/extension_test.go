@@ -76,6 +76,42 @@ func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
 	}
 }
 
+func TestNewSnapshotExtensionFeatureRegistersConfigFlagSpecs(t *testing.T) {
+	t.Parallel()
+
+	feature := NewSnapshotExtensionFeature[extensionTestConfig, extensionTestSnapshot](
+		SpecOptions{FeatureName: "demo"},
+		SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+			DefaultConfigFunc: func() extensionTestConfig {
+				return extensionTestConfig{Name: "default"}
+			},
+			ConfigFlagSpecs: []FeatureConfigFlagSpec[extensionTestConfig]{
+				{
+					Name:    "name",
+					Help:    "test name",
+					Default: "default",
+					Bind: func(flag *kingpin.FlagClause, config *extensionTestConfig) {
+						flag.StringVar(&config.Name)
+					},
+				},
+			},
+			RuntimeConfigFunc: func(_ RuntimeConfigContext[extensionTestConfig], config extensionTestConfig) []any {
+				return []any{"name", config.Name}
+			},
+		},
+	)
+
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	feature.RegisterFlags(app)
+	if _, err := app.Parse([]string{"--demo.name=from-spec"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := configValue(t, feature.RuntimeConfig(), "name"); got != "from-spec" {
+		t.Fatalf("name = %v, want from-spec", got)
+	}
+}
+
 func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 	t.Parallel()
 
