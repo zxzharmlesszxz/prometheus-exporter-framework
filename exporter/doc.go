@@ -9,6 +9,13 @@
 // so concrete exporters do not need to copy boilerplate for common assertions
 // or timestamp/boolean gauge conversion.
 //
+// API policy:
+//   - This package is the stable public facade for generated exporters.
+//   - Exported identifiers are intended for use by external exporter repositories.
+//   - Add new exports only when they are expected to remain stable.
+//   - Keep experimental helpers in internal packages or explicitly unstable
+//     subpackages.
+//
 // Concrete exporters provide domain behavior by implementing Feature and
 // passing one or more features to MainFromProject, MainFromInjectedProject,
 // MainForProject, Main, RunCLIFromProject, or RunCLI. A feature registers its
