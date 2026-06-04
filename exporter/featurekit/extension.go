@@ -30,6 +30,8 @@ type SnapshotFeatureExtension[C any, S any] struct {
 	DefaultSnapshotEngine  SnapshotEngine[S]
 	NewSnapshotterFunc     func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
 	DefaultSnapshotter     framework.Snapshotter[S]
+	MetricSpecs            []FeatureMetricSpec
+	MetricHandlers         FeatureMetricHandlers[S]
 	MetricsFunc            SnapshotMetricsFunc[S]
 	StatusFunc             func(S) framework.SnapshotStatus
 	ErrorLogFunc           func(*slog.Logger, S)
@@ -46,7 +48,7 @@ func NewSnapshotExtensionFeatureSpec[C any, S any](options SpecOptions, extensio
 		ValidateConfigFunc:     extension.ValidateConfigFunc,
 		NewSnapshotterFunc:     snapshotExtensionNewSnapshotter(extension),
 		DefaultSnapshotter:     snapshotExtensionDefaultSnapshotter(extension),
-		MetricsFunc:            extension.MetricsFunc,
+		MetricsFunc:            snapshotExtensionMetricsFunc(extension),
 		StatusFunc:             extension.StatusFunc,
 		ErrorLogFunc:           extension.ErrorLogFunc,
 		RuntimeConfigFunc:      snapshotExtensionRuntimeConfig(extension),
@@ -76,6 +78,18 @@ func snapshotExtensionDefaultSnapshotter[C any, S any](extension SnapshotFeature
 		return extension.DefaultSnapshotter
 	}
 	return extension.DefaultSnapshotEngine
+}
+
+func snapshotExtensionMetricsFunc[C any, S any](extension SnapshotFeatureExtension[C, S]) SnapshotMetricsFunc[S] {
+	if extension.MetricsFunc != nil {
+		return extension.MetricsFunc
+	}
+	if len(extension.MetricSpecs) == 0 && extension.MetricHandlers.Collect == nil && extension.MetricHandlers.LogError == nil {
+		return nil
+	}
+	return func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S] {
+		return NewFeatureMetrics(ctx, extension.MetricSpecs, extension.MetricHandlers)
+	}
 }
 
 func DefaultFeatureConfigFile(featureName string) string {

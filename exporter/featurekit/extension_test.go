@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
 
@@ -203,6 +205,85 @@ func TestNewSnapshotExtensionFeatureSpecPrefersExplicitSnapshotterHooks(t *testi
 	}
 	if got := snapshotter.Snapshot(context.Background(), time.Unix(1700000000, 0)).Value; got != 4 {
 		t.Fatalf("NewSnapshotterFunc snapshot value = %v, want 4", got)
+	}
+}
+
+func TestSnapshotExtensionMetricsFuncUsesMetricSpecsAndHandlers(t *testing.T) {
+	t.Parallel()
+
+	metricsFunc := snapshotExtensionMetricsFunc(SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+		MetricSpecs: []FeatureMetricSpec{
+			{
+				ID:    "value",
+				Scope: MetricScopeFeature,
+				Name:  "_value",
+				Help:  "Demo value.",
+			},
+		},
+		MetricHandlers: FeatureMetricHandlers[extensionTestSnapshot]{
+			Collect: func(ctx FeatureMetricsContext[extensionTestSnapshot], ch chan<- prometheus.Metric, snapshot extensionTestSnapshot, _ time.Time) {
+				if ctx.FeatureName != "demo" {
+					t.Fatalf("FeatureName = %q, want demo", ctx.FeatureName)
+				}
+				if ctx.Namespace != "demo_exporter" {
+					t.Fatalf("Namespace = %q, want demo_exporter", ctx.Namespace)
+				}
+				ch <- prometheus.MustNewConstMetric(ctx.Descriptors.Get("value"), prometheus.GaugeValue, snapshot.Value)
+			},
+		},
+	})
+	if metricsFunc == nil {
+		t.Fatal("metricsFunc = nil, want generated metrics function")
+	}
+
+	metrics := metricsFunc(SnapshotMetricsContext[extensionTestSnapshot]{
+		FeatureName: "demo",
+		Namespace:   "demo_exporter",
+	})
+	descCh := make(chan *prometheus.Desc, 1)
+	metrics.Describe(descCh)
+	if len(descCh) != 1 {
+		t.Fatalf("Describe() emitted %d descriptors, want 1", len(descCh))
+	}
+
+	metricCh := make(chan prometheus.Metric, 1)
+	metrics.Collect(metricCh, extensionTestSnapshot{Value: 42}, time.Unix(1700000000, 0))
+	if len(metricCh) != 1 {
+		t.Fatalf("Collect() emitted %d metrics, want 1", len(metricCh))
+	}
+	var metric dto.Metric
+	if err := (<-metricCh).Write(&metric); err != nil {
+		t.Fatalf("Metric.Write() error = %v", err)
+	}
+	if got := metric.GetGauge().GetValue(); got != 42 {
+		t.Fatalf("metric value = %v, want 42", got)
+	}
+}
+
+func TestSnapshotExtensionMetricsFuncPrefersExplicitMetricsFunc(t *testing.T) {
+	t.Parallel()
+
+	explicitCalled := false
+	metricsFunc := snapshotExtensionMetricsFunc(SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+		MetricSpecs: []FeatureMetricSpec{
+			{ID: "value", Scope: MetricScopeFeature, Name: "_value", Help: "Demo value."},
+		},
+		MetricHandlers: FeatureMetricHandlers[extensionTestSnapshot]{
+			Collect: func(FeatureMetricsContext[extensionTestSnapshot], chan<- prometheus.Metric, extensionTestSnapshot, time.Time) {
+				t.Fatal("MetricHandlers.Collect was called, want explicit MetricsFunc")
+			},
+		},
+		MetricsFunc: func(SnapshotMetricsContext[extensionTestSnapshot]) SnapshotMetrics[extensionTestSnapshot] {
+			explicitCalled = true
+			return nil
+		},
+	})
+	if metricsFunc == nil {
+		t.Fatal("metricsFunc = nil, want explicit metrics function")
+	}
+	_ = metricsFunc(SnapshotMetricsContext[extensionTestSnapshot]{})
+	if !explicitCalled {
+		t.Fatal("explicit MetricsFunc was not called")
 	}
 }
 

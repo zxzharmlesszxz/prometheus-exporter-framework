@@ -1,6 +1,11 @@
 package featurekit
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"log/slog"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 type MetricScope int
 
@@ -21,6 +26,30 @@ type FeatureMetricSpec struct {
 type FeatureMetricDescriptors struct {
 	order []string
 	descs map[string]*prometheus.Desc
+}
+
+type FeatureMetricsContext[S any] struct {
+	SnapshotMetricsContext[S]
+	Descriptors FeatureMetricDescriptors
+}
+
+type FeatureMetricsCollectFunc[S any] func(ctx FeatureMetricsContext[S], ch chan<- prometheus.Metric, snapshot S, now time.Time)
+
+type FeatureMetricsLogFunc[S any] func(ctx FeatureMetricsContext[S], logger *slog.Logger, snapshot S)
+
+type FeatureMetricHandlers[S any] struct {
+	Collect  FeatureMetricsCollectFunc[S]
+	LogError FeatureMetricsLogFunc[S]
+}
+
+func NewFeatureMetrics[S any](ctx SnapshotMetricsContext[S], specs []FeatureMetricSpec, handlers FeatureMetricHandlers[S]) SnapshotMetrics[S] {
+	return featureMetrics[S]{
+		ctx: FeatureMetricsContext[S]{
+			SnapshotMetricsContext: ctx,
+			Descriptors:            LoadFeatureMetricDescriptors(ctx.FeatureName, ctx.Namespace, specs),
+		},
+		handlers: handlers,
+	}
 }
 
 func LoadFeatureMetricDescriptors(featureName string, namespace string, specs []FeatureMetricSpec) FeatureMetricDescriptors {
@@ -69,5 +98,26 @@ func (s FeatureMetricSpec) MetricName(featureName string, namespace string) stri
 		return s.Name
 	default:
 		return s.Name
+	}
+}
+
+type featureMetrics[S any] struct {
+	ctx      FeatureMetricsContext[S]
+	handlers FeatureMetricHandlers[S]
+}
+
+func (m featureMetrics[S]) Describe(ch chan<- *prometheus.Desc) {
+	m.ctx.Descriptors.Describe(ch)
+}
+
+func (m featureMetrics[S]) Collect(ch chan<- prometheus.Metric, snapshot S, now time.Time) {
+	if m.handlers.Collect != nil {
+		m.handlers.Collect(m.ctx, ch, snapshot, now)
+	}
+}
+
+func (m featureMetrics[S]) LogSnapshotError(logger *slog.Logger, snapshot S) {
+	if m.handlers.LogError != nil {
+		m.handlers.LogError(m.ctx, logger, snapshot)
 	}
 }
