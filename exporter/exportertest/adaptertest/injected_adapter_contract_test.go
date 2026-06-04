@@ -3,7 +3,6 @@ package adaptertest
 import (
 	"testing"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
@@ -28,9 +27,9 @@ func TestRunInjectedAdapterContract(t *testing.T) {
 			},
 		}
 	}
-	var main MainFromInjectedProjectFunc = func(features ...framework.Feature) {
+	main := MainFromInjectedProjectFunc(func(features ...framework.Feature) {
 		t.Fatalf("unexpected main call with %d features", len(features))
-	}
+	})
 
 	RunInjectedAdapterContract(t, InjectedAdapterContractConfig{
 		NewFeature: newFeature,
