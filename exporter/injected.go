@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// Injected metadata is a build-time contract.
+// These values must be provided by generated exporter Makefiles via -ldflags.
+// Missing values mean the binary was built incorrectly, so the public injected
+// helpers intentionally fail fast instead of falling back to implicit defaults.
 var (
 	injectedExporterName        string
 	injectedExporterDescription string
