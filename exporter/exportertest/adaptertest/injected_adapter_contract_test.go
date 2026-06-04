@@ -3,6 +3,7 @@ package adaptertest
 import (
 	"testing"
 
+	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
