@@ -111,6 +111,7 @@ Concrete exporters can reuse small metric helpers instead of carrying local copi
 - `RegisterAndStartCollectors(ctx, registry, collectors...)` for collectors with a background `Start(context.Context)` lifecycle
 
 Tests can import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest` for common registry/gather helpers, metric lookup, metric value assertions, histogram lookup, and polling metrics that are updated by background refresh loops.
+Scaffolded feature tests can additionally import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest/featuretest` for the standard `FeatureTestSuite` contract and keep only domain-specific test registration in concrete exporter repositories.
 
 `ConfigFromProject` derives exporter name and metric namespace from the Go module/project name.
 For example, `prometheus-demo-exporter` becomes `demo_exporter`.

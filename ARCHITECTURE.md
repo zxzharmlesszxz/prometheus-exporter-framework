@@ -29,6 +29,8 @@ Domain logic is supplied by external `exporter.Feature` implementations.
   Typed generated-feature lifecycle helpers used by scaffolded exporters.
 - `exporter/exportertest`
   Test helpers and downstream feature contract checks.
+- `exporter/exportertest/featuretest`
+  Standard feature test suite for scaffolded `featurekit` snapshot exporters.
 
 ## Data Flow
 
@@ -65,7 +67,7 @@ Optional interfaces:
 The helper `CollectorFeature` can be used when a feature only needs callbacks instead of a dedicated type.
 The helper `SnapshotCollector` can be used when a feature needs a typed snapshot cache, background refresh loop, and common collection health metrics.
 The `exporter/featurekit` subpackage can be used by scaffolded exporters that want a typed feature spec instead of hand-written flag, runtime-config, collector-registration, and collector-startup boilerplate.
-The package also exposes small value/lifecycle helpers (`BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScrapeMetrics`, `NormalizeDuration`, and `RegisterAndStartCollectors`) plus the `exporter/exportertest` package for shared exporter test assertions.
+The package also exposes small value/lifecycle helpers (`BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScrapeMetrics`, `NormalizeDuration`, and `RegisterAndStartCollectors`) plus the `exporter/exportertest` and `exporter/exportertest/featuretest` packages for shared exporter test assertions and scaffolded feature test suites.
 
 ## Common HTTP Semantics
 
@@ -102,7 +104,7 @@ The public extension surface is:
 
 The `exporter/featurekit` subpackage is public support for generated exporters and exposes `FeatureSpec`, `Feature`, `SmokeSpec`, `SmokeContext`, `SnapshotCollectorOptions`, `ResolveSnapshotCollectorOptions`, `NewSnapshotCollector`, config flag spec helpers, and feature metric spec helpers.
 
-The `exporter/exportertest` subpackage is public test support for downstream exporters.
+The `exporter/exportertest` subpackage is public test support for downstream exporters. The `exporter/exportertest/featuretest` subpackage owns the reusable `FeatureTestSuite` for scaffolded feature packages; concrete exporters pass feature-specific snapshot/config/metric hooks into that suite and register only domain-specific test cases locally.
 
 `NewHandler` is a lower-level constructor for embedding or focused tests.
 Production entrypoints should prefer `RunCLI`, `Run`, or `NewServerChecked`, which apply option normalization and telemetry-path validation before constructing handlers.

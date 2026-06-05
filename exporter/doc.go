@@ -30,6 +30,8 @@
 // The exporter/featurekit subpackage provides typed lifecycle helpers for
 // generated exporters that want to avoid copying feature and collector
 // boilerplate in each concrete repository.
+// The exporter/exportertest/featuretest subpackage provides the matching
+// reusable test suite for scaffolded feature packages.
 // FileScrapeMetrics is available for file-backed scrape-time collectors that
 // share mtime, scrape duration, and read or parse error counters.
 //
