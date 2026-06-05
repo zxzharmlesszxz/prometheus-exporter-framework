@@ -15,7 +15,9 @@ SMOKE_REVISION ?= abc123def
 SMOKE_BUILD_USER ?= smoke-test
 SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 
-.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke docker-build docker-smoke-image docker-smoke check clean public-api-check public-api-update
+.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke docker-build docker-smoke-image docker-smoke check clean
+.PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
+
 help: ## Show available make targets.
 	@printf "\033[33mUsage:\033[0m\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "};{printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -38,11 +40,21 @@ test: ## Run Go tests.
 test-race: ## Run Go tests with the race detector.
 	$(GO) test -race ./...
 
-public-api-check: ## Check exporter public API surface.
+exporter-public-api-check: ## Check exporter public API surface.
 	$(GO) test ./exporter
 
-public-api-update: ## Update exporter public API golden file.
+featurekit-public-api-check: ## Check featurekit public API surface.
+	$(GO) test ./exporter/featurekit
+
+exporter-public-api-update: ## Update exporter public API golden file.
 	$(GO) test ./exporter -update-public-api
+
+featurekit-public-api-update: ## Update featurekit public API golden file.
+	$(GO) test ./exporter/featurekit -update-public-api
+
+public-api-update: exporter-public-api-update featurekit-public-api-update ## Update public API golden files.
+
+public-api-check: exporter-public-api-check featurekit-public-api-check ## Check public API golden files.
 
 coverage: ## Run tests with coverage and write coverage reports.
 	$(GO) test ./... -covermode=atomic -coverprofile=$(COVERAGE_PROFILE)
