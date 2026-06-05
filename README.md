@@ -203,6 +203,11 @@ Override it when needed:
 make coverage-check COVERAGE_THRESHOLD=95.0
 ```
 
+The `exporter` package public API is tracked by a golden-file test. If an
+exported identifier is added, removed, or renamed intentionally, run
+`make public-api-update` and review `git diff exporter/testdata/public_api.txt`.
+Commit the golden-file change together with the code change.
+
 `make smoke` builds the binary with injected version metadata, checks `--version`,
 verifies telemetry-path validation, and probes `/healthz` plus `/metrics`.
 `make docker-smoke` performs the same version and endpoint checks against the
