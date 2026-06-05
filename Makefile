@@ -15,8 +15,7 @@ SMOKE_REVISION ?= abc123def
 SMOKE_BUILD_USER ?= smoke-test
 SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 
-.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke docker-build docker-smoke-image docker-smoke check clean
-
+.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke docker-build docker-smoke-image docker-smoke check clean public-api-check public-api-update
 help: ## Show available make targets.
 	@printf "\033[33mUsage:\033[0m\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "};{printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -38,6 +37,12 @@ test: ## Run Go tests.
 
 test-race: ## Run Go tests with the race detector.
 	$(GO) test -race ./...
+
+public-api-check:
+	$(GO) test ./exporter
+
+public-api-update:
+	$(GO) test ./exporter -update-public-api
 
 coverage: ## Run tests with coverage and write coverage reports.
 	$(GO) test ./... -covermode=atomic -coverprofile=$(COVERAGE_PROFILE)
@@ -94,7 +99,7 @@ docker-smoke-image: ## Smoke-test an already built Docker image.
 
 docker-smoke: docker-build docker-smoke-image ## Build and smoke-test the Docker image.
 
-check: fmt-check vet staticcheck coverage-check smoke test-race ## Run the standard maintenance check.
+check: fmt-check vet staticcheck coverage-check smoke test-race public-api-check ## Run the standard maintenance check.
 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
