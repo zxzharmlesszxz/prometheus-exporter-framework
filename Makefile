@@ -38,10 +38,10 @@ test: ## Run Go tests.
 test-race: ## Run Go tests with the race detector.
 	$(GO) test -race ./...
 
-public-api-check:
+public-api-check: ## Check exporter public API surface.
 	$(GO) test ./exporter
 
-public-api-update:
+public-api-update: ## Update exporter public API golden file.
 	$(GO) test ./exporter -update-public-api
 
 coverage: ## Run tests with coverage and write coverage reports.
