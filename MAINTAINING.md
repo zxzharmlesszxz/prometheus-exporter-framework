@@ -65,3 +65,12 @@ The Dockerfile and CI build validation pass linker values to
 The binary smoke test verifies this metadata through `--version` and the
 `*_build_info` metric. Concrete exporter repositories should own their own
 publishing flow and release metadata policy.
+
+## Public API changes
+
+Changes to:
+
+- `exporter/*`
+- `exporter/featurekit/*`
+
+must update the corresponding `public_api.txt` golden file.
