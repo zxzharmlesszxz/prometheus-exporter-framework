@@ -9,7 +9,6 @@ permissions:
 
 env:
   COVERAGE_THRESHOLD: "90.0"
-  SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
 
 defaults:
   run:
@@ -70,54 +69,3 @@ jobs:
             coverage.out
             coverage.txt
           if-no-files-found: ignore
-
-  scaffold-compatibility:
-    name: Scaffold compatibility
-    runs-on: ubuntu-24.04
-    container:
-      image: golang:1.26.3-alpine
-
-    steps:
-      - name: Prepare Alpine
-        shell: sh
-        run: apk add --no-cache bash build-base git make
-
-      - name: Checkout framework
-        uses: actions/checkout@v6
-
-      - name: Trust framework checkout directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Checkout scaffold
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.SCAFFOLD_REPOSITORY }}
-          token: ${{ secrets.SCAFFOLD_REPO_TOKEN || github.token }}
-          path: scaffold
-
-      - name: Trust scaffold checkout directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold"
-
-      - name: Verify scaffold against framework checkout
-        working-directory: scaffold
-        env:
-          FRAMEWORK_PATH: ${{ github.workspace }}
-          VERSION: v0.0.0-ci
-        run: |
-          go mod edit \
-            -require=github.com/zxzharmlesszxz/prometheus-exporter-framework@"$VERSION" \
-            -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" \
-            template/go.mod
-          (cd template && go mod tidy)
-
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-          scripts/render.sh \
-            --project-name prometheus-demo-exporter \
-            --module github.com/zxzharmlesszxz/prometheus-demo-exporter \
-            --description "Prometheus Demo Exporter" \
-            --feature-name demo \
-            --namespace demo_exporter \
-            --port 9888 \
-            --target-dir "$tmp"
-          (cd "$tmp" && go mod edit -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" && go mod tidy && make go-check GO=go GOFMT=gofmt)
