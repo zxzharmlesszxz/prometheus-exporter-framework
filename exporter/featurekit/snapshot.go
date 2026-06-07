@@ -26,9 +26,18 @@ type SnapshotEngine[S any] interface {
 	Snapshot(context.Context, time.Time) S
 }
 
-// SnapshotEngineFunc constructs a feature-owned snapshot engine from resolved
+// SnapshotEngineFunc is a function that satisfies SnapshotEngine.
+//
+// It is useful for feature-level aggregate snapshots where the feature calls
+// one or more check engines and combines their snapshots into the exported
+// feature snapshot type.
+type SnapshotEngineFunc[S any] func(context.Context, time.Time) S
+
+func (f SnapshotEngineFunc[S]) Snapshot(ctx context.Context, now time.Time) S { return f(ctx, now) }
+
+// SnapshotEngineFactory constructs a feature-owned snapshot engine from resolved
 // collector context.
-type SnapshotEngineFunc[C any, S any] func(ctx CollectorContext[C]) (SnapshotEngine[S], error)
+type SnapshotEngineFactory[C any, S any] func(ctx CollectorContext[C]) (SnapshotEngine[S], error)
 
 type SnapshotMetricsContext[S any] struct {
 	FeatureName string
@@ -84,6 +93,9 @@ func NewSnapshotFeatureSpec[C any, S any](spec SnapshotFeatureSpec[C, S]) Featur
 	fallbackRefreshInterval := spec.Options.FallbackRefreshInterval
 	if fallbackRefreshInterval <= 0 {
 		fallbackRefreshInterval = spec.DefaultRefreshInterval
+	}
+	if fallbackRefreshInterval <= 0 {
+		fallbackRefreshInterval = framework.DefaultSnapshotRefreshInterval
 	}
 
 	return FeatureSpec[C, S]{
@@ -194,12 +206,6 @@ func newSnapshotMetrics[S any](ctx SnapshotMetricsContext[S], metricsFunc Snapsh
 
 type noopSnapshotMetrics[S any] struct{}
 
-func (noopSnapshotMetrics[S]) Describe(ch chan<- *prometheus.Desc) {
-	_ = ch
-}
+func (noopSnapshotMetrics[S]) Describe(ch chan<- *prometheus.Desc) {}
 
-func (noopSnapshotMetrics[S]) Collect(ch chan<- prometheus.Metric, snapshot S, now time.Time) {
-	_ = ch
-	_ = snapshot
-	_ = now
-}
+func (noopSnapshotMetrics[S]) Collect(ch chan<- prometheus.Metric, snapshot S, now time.Time) {}

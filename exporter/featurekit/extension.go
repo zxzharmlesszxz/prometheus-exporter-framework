@@ -27,7 +27,7 @@ type SnapshotFeatureExtension[C any, S any] struct {
 	ValidateConfigFunc     func(config C) error
 	ResolveConfigFunc      FeatureConfigResolver[C]
 	RuntimeConfigFunc      func(ctx RuntimeConfigContext[C], config C) []any
-	NewSnapshotEngineFunc  SnapshotEngineFunc[C, S]
+	SnapshotEngineFactory  SnapshotEngineFactory[C, S]
 	DefaultSnapshotEngine  SnapshotEngine[S]
 	NewSnapshotterFunc     func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
 	DefaultSnapshotter     framework.Snapshotter[S]
@@ -66,11 +66,11 @@ func snapshotExtensionNewSnapshotter[C any, S any](extension SnapshotFeatureExte
 	if extension.NewSnapshotterFunc != nil {
 		return extension.NewSnapshotterFunc
 	}
-	if extension.NewSnapshotEngineFunc == nil {
+	if extension.SnapshotEngineFactory == nil {
 		return nil
 	}
 	return func(ctx CollectorContext[C]) (framework.Snapshotter[S], error) {
-		return extension.NewSnapshotEngineFunc(ctx)
+		return extension.SnapshotEngineFactory(ctx)
 	}
 }
 

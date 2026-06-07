@@ -10,7 +10,8 @@ import (
 type MetricScope int
 
 const (
-	MetricScopeFeature MetricScope = iota
+	MetricScopeUnset MetricScope = iota
+	MetricScopeFeature
 	MetricScopeNamespace
 	MetricScopeAbsolute
 )
@@ -85,7 +86,7 @@ func FeatureMetricName(featureName string, namespace string, id string, specs []
 			return spec.MetricName(featureName, namespace)
 		}
 	}
-	return id
+	panic("unknown metric ID: " + id)
 }
 
 func (s FeatureMetricSpec) MetricName(featureName string, namespace string) string {

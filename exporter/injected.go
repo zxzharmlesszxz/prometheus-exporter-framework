@@ -2,8 +2,8 @@ package exporter
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
+
+	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/internal/app"
 )
 
 // Injected metadata is a build-time contract.
@@ -19,24 +19,24 @@ var (
 )
 
 func InjectedExporterName() string {
-	return requireInjectedDefault("injectedExporterName", injectedExporterName)
+	return app.RequireInjectedDefault("injectedExporterName", injectedExporterName)
 }
 
 func InjectedExporterDescription() string {
-	return requireInjectedDefault("injectedExporterDescription", injectedExporterDescription)
+	return app.RequireInjectedDefault("injectedExporterDescription", injectedExporterDescription)
 }
 
 func InjectedFeatureName() string {
-	return requireInjectedDefault("injectedFeatureName", injectedFeatureName)
+	return app.RequireInjectedDefault("injectedFeatureName", injectedFeatureName)
 }
 
 func InjectedMetricNamespace() string {
-	return requireInjectedDefault("injectedMetricNamespace", injectedMetricNamespace)
+	return app.RequireInjectedDefault("injectedMetricNamespace", injectedMetricNamespace)
 }
 
 func InjectedDefaultListenAddress() string {
-	listenAddress := requireInjectedDefault("injectedListenAddress", injectedListenAddress)
-	requireListenAddress(listenAddress)
+	listenAddress := app.RequireInjectedDefault("injectedListenAddress", injectedListenAddress)
+	app.RequireListenAddress(listenAddress)
 
 	return listenAddress
 }
@@ -65,38 +65,11 @@ func ConfigFromInjectedProject(features ...Feature) Config {
 
 func MainFromInjectedProject(features ...Feature) {
 	cfg := ConfigFromInjectedProject(features...)
-	cfg.Name = executableName(os.Args, cfg.Name)
+	cfg.Name = app.ExecutableName(os.Args, cfg.Name)
 
 	Main(cfg)
 }
 
 func ExporterInfoFromInjectedProject(features ...Feature) ExporterInfo {
 	return ExporterInfoFromProjectMetadata(InjectedProjectMetadata(), features...)
-}
-
-func executableName(args []string, fallback string) string {
-	if len(args) == 0 {
-		return fallback
-	}
-
-	name := filepath.Base(args[0])
-	if name == "." || strings.TrimSpace(name) == "" {
-		return fallback
-	}
-
-	return name
-}
-
-func requireInjectedDefault(name string, value string) string {
-	if strings.TrimSpace(value) == "" {
-		panic("missing Makefile-injected exporter metadata: " + name)
-	}
-
-	return value
-}
-
-func requireListenAddress(value string) {
-	if !strings.HasPrefix(value, ":") {
-		panic("invalid Makefile-injected exporter metadata: default listen address must start with :")
-	}
 }

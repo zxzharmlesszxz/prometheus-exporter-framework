@@ -346,7 +346,7 @@ func TestExecutableName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := executableName(tc.args, tc.fallback); got != tc.want {
+			if got := ExecutableName(tc.args, tc.fallback); got != tc.want {
 				t.Fatalf("executableName(%q, %q) = %q, want %q", tc.args, tc.fallback, got, tc.want)
 			}
 		})

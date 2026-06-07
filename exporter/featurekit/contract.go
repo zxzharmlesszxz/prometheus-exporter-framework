@@ -31,45 +31,23 @@ func (FeatureDefaults[C, S]) DefaultConfig() C {
 	return config
 }
 
-func (FeatureDefaults[C, S]) RegisterFlags(app *kingpin.Application, ctx FlagContext, config *C) {
-	_ = app
-	_ = ctx
-	_ = config
-}
+func (FeatureDefaults[C, S]) RegisterFlags(app *kingpin.Application, ctx FlagContext, config *C) {}
 
-func (FeatureDefaults[C, S]) ValidateConfig(config C) error {
-	_ = config
-	return nil
-}
+func (FeatureDefaults[C, S]) ValidateConfig(config C) error { return nil }
 
-func (FeatureDefaults[C, S]) NewSnapshotter(ctx CollectorContext[C]) (framework.Snapshotter[S], error) {
-	_ = ctx
-	return nil, nil
-}
+func (FeatureDefaults[C, S]) NewSnapshotter(ctx CollectorContext[C]) (framework.Snapshotter[S], error) { return nil, nil }
 
 func (FeatureDefaults[C, S]) DefaultSnapshotter() framework.Snapshotter[S] {
 	return nil
 }
 
-func (FeatureDefaults[C, S]) NewMetrics(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S] {
-	_ = ctx
-	return nil
-}
+func (FeatureDefaults[C, S]) NewMetrics(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S] { return nil }
 
-func (FeatureDefaults[C, S]) SnapshotStatus(snapshot S) framework.SnapshotStatus {
-	_ = snapshot
-	return framework.SnapshotStatus{}
-}
+func (FeatureDefaults[C, S]) SnapshotStatus(snapshot S) framework.SnapshotStatus { return framework.SnapshotStatus{} }
 
-func (FeatureDefaults[C, S]) RuntimeConfig(ctx RuntimeConfigContext[C]) []any {
-	_ = ctx
-	return nil
-}
+func (FeatureDefaults[C, S]) RuntimeConfig(ctx RuntimeConfigContext[C]) []any { return nil }
 
-func (FeatureDefaults[C, S]) SmokeSpec(ctx SmokeContext[C]) SmokeSpec {
-	_ = ctx
-	return SmokeSpec{}
-}
+func (FeatureDefaults[C, S]) SmokeSpec(ctx SmokeContext[C]) SmokeSpec { return SmokeSpec{} }
 
 func NewContractSnapshotFeatureSpec[C any, S any](options SpecOptions, contract FeatureContract[C, S]) FeatureSpec[C, S] {
 	if contract == nil {

@@ -139,9 +139,9 @@ func TestFeatureTestSuiteRegisterFeatureCollectorsReportsError(t *testing.T) {
 	if HasString([]string{"a", "b"}, "c") {
 		t.Fatal("HasString() = true, want false")
 	}
-	if got := suite.MetricName("demo", "", "missing"); got != "missing" {
-		t.Fatalf("MetricName(missing) = %q, want missing", got)
-	}
+	assertPanic(t, func() {
+		suite.MetricName("demo", "", "missing")
+	})
 }
 
 func testCollectorExportsSnapshot(t *testing.T, suite *FeatureTestSuite[testConfig, testSnapshot]) {
@@ -272,16 +272,6 @@ func newTestFeatureSpec(overrides FeatureTestSpec[testConfig, testSnapshot]) Fea
 	return spec
 }
 
-func assertPanic(t *testing.T, run func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("panic was not raised")
-		}
-	}()
-	run()
-}
-
 func newTestFeature(options featurekit.SpecOptions) *featurekit.Feature[testConfig, testSnapshot] {
 	return featurekit.NewSnapshotExtensionFeature(options, featurekit.SnapshotFeatureExtension[testConfig, testSnapshot]{
 		DefaultRefreshInterval: testDefaultRefreshInterval,
@@ -301,7 +291,7 @@ func newTestFeature(options featurekit.SpecOptions) *featurekit.Feature[testConf
 		RuntimeConfigFunc: func(_ featurekit.RuntimeConfigContext[testConfig], config testConfig) []any {
 			return []any{"name", config.Name}
 		},
-		NewSnapshotEngineFunc: func(ctx featurekit.CollectorContext[testConfig]) (featurekit.SnapshotEngine[testSnapshot], error) {
+		SnapshotEngineFactory: func(ctx featurekit.CollectorContext[testConfig]) (featurekit.SnapshotEngine[testSnapshot], error) {
 			config, _, _, err := testResolveConfig(ctx.FeatureName, ctx.Config)
 			if err != nil {
 				return nil, err

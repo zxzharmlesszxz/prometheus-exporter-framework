@@ -14,6 +14,20 @@ import (
 func TestFeatureMetricName(t *testing.T) {
 	t.Parallel()
 
+	assertPanicMsg := func(t *testing.T, want string, run func()) {
+		t.Helper()
+		defer func() {
+			if msg := recover(); msg != nil {
+				if got, ok := msg.(string); !ok || got != want {
+					t.Fatalf("panic msg = %q, want %q", got, want)
+				}
+			} else {
+				t.Fatal("panic was not raised")
+			}
+		}()
+		run()
+	}
+
 	tests := []struct {
 		name string
 		spec FeatureMetricSpec
@@ -52,9 +66,9 @@ func TestFeatureMetricName(t *testing.T) {
 	if got := FeatureMetricName("feature", "namespace", "known", specs); got != "feature_known" {
 		t.Fatalf("FeatureMetricName(known) = %q, want feature_known", got)
 	}
-	if got := FeatureMetricName("feature", "namespace", "missing", specs); got != "missing" {
-		t.Fatalf("FeatureMetricName(missing) = %q, want missing", got)
-	}
+	assertPanicMsg(t, "unknown metric ID: missing", func() {
+		FeatureMetricName("feature", "namespace", "missing", specs)
+	})
 }
 
 func TestLoadFeatureMetricDescriptorsPreservesSpecOrder(t *testing.T) {

@@ -195,7 +195,7 @@ func TestNewSnapshotExtensionFeatureSpecUsesEngineHooks(t *testing.T) {
 	defaultEngine := extensionTestEngine{snapshot: extensionTestSnapshot{Value: 1}}
 	extension := SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
 		DefaultSnapshotEngine: defaultEngine,
-		NewSnapshotEngineFunc: func(ctx CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
+		SnapshotEngineFactory: func(ctx CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
 			if ctx.FeatureName != "demo" {
 				t.Fatalf("FeatureName = %q, want demo", ctx.FeatureName)
 			}
@@ -221,8 +221,8 @@ func TestNewSnapshotExtensionFeatureSpecPrefersExplicitSnapshotterHooks(t *testi
 
 	extension := SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
 		DefaultSnapshotEngine: extensionTestEngine{snapshot: extensionTestSnapshot{Value: 1}},
-		NewSnapshotEngineFunc: func(CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
-			t.Fatal("NewSnapshotEngineFunc was called, want explicit NewSnapshotterFunc")
+		SnapshotEngineFactory: func(CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
+			t.Fatal("SnapshotEngineFactory was called, want explicit NewSnapshotterFunc")
 			return nil, nil
 		},
 		DefaultSnapshotter: extensionTestEngine{snapshot: extensionTestSnapshot{Value: 3}},

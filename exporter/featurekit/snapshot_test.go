@@ -1,6 +1,7 @@
 package featurekit
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"strings"
@@ -14,6 +15,154 @@ import (
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest"
 )
+
+func TestSnapshotEngineFactory(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	factory := SnapshotEngineFactory[testConfig, testSnapshot](func(ctx CollectorContext[testConfig]) (SnapshotEngine[testSnapshot], error) {
+		if ctx.FeatureName != "demo" {
+			t.Fatalf("FeatureName = %q, want demo", ctx.FeatureName)
+		}
+		return SnapshotEngineFunc[testSnapshot](func(_ context.Context, _ time.Time) testSnapshot {
+			return testSnapshot{attemptTime: now, success: true, value: float64(len(ctx.Config.target))}
+		}), nil
+	})
+
+	engine, err := factory(CollectorContext[testConfig]{
+		FeatureName: "demo",
+		Config:      testConfig{target: "hello"},
+	})
+	if err != nil {
+		t.Fatalf("factory() error = %v", err)
+	}
+
+	snapshot := engine.Snapshot(context.Background(), now)
+	if snapshot.value != 5 {
+		t.Fatalf("snapshot value = %v, want 5 (len of 'hello')", snapshot.value)
+	}
+}
+
+func TestNewSnapshotFeatureSpecDefaultsFallbackRefreshInterval(t *testing.T) {
+	t.Parallel()
+
+	spec := NewSnapshotFeatureSpec(SnapshotFeatureSpec[testConfig, testSnapshot]{
+		Options: SpecOptions{
+			FeatureName: "demo",
+		},
+	})
+
+	if spec.FallbackRefreshInterval != framework.DefaultSnapshotRefreshInterval {
+		t.Fatalf("FallbackRefreshInterval = %v, want %v", spec.FallbackRefreshInterval, framework.DefaultSnapshotRefreshInterval)
+	}
+}
+
+func TestNewSnapshotFeatureSpecPrefersSpecDefaultRefreshInterval(t *testing.T) {
+	t.Parallel()
+
+	spec := NewSnapshotFeatureSpec(SnapshotFeatureSpec[testConfig, testSnapshot]{
+		Options: SpecOptions{
+			FeatureName: "demo",
+		},
+		DefaultRefreshInterval: 90 * time.Second,
+	})
+
+	if spec.DefaultRefreshInterval != 90*time.Second {
+		t.Fatalf("DefaultRefreshInterval = %v, want 90s", spec.DefaultRefreshInterval)
+	}
+}
+
+func TestResolveSnapshotCollectorOptionsNilLoggerDefaults(t *testing.T) {
+	t.Parallel()
+
+	options := ResolveSnapshotCollectorOptions(SnapshotCollectorOptions[testSnapshot]{
+		FeatureName: "demo",
+		Namespace:   "demo_exporter",
+		Snapshotter: testSnapshotter{},
+	})
+	if options.Logger == nil {
+		t.Fatal("Logger = nil, want slog.Default()")
+	}
+}
+
+func TestNewSnapshotCollectorDefaultsToZeroSnapshotter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		FeatureName:     "demo",
+		Namespace:       "demo_exporter",
+		RefreshInterval: time.Minute,
+		StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+			return framework.SnapshotStatus{AttemptTime: snapshot.attemptTime, Success: snapshot.success}
+		},
+		Now: func() time.Time {
+			return now
+		},
+	})
+
+	// With zero snapshotter, the collector still produces collection health metrics.
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 0)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, 0)
+}
+
+func TestNewSnapshotCollectorWithNilStatusFunc(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		FeatureName:     "demo",
+		Namespace:       "demo_exporter",
+		Snapshotter:     testSnapshotter{snapshot: testSnapshot{attemptTime: now}},
+		RefreshInterval: time.Minute,
+		Now: func() time.Time {
+			return now
+		},
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 0)
+}
+
+func TestNewSnapshotCollectorWithNilCollectFunc(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		FeatureName:     "demo",
+		Namespace:       "demo_exporter",
+		Snapshotter:     testSnapshotter{snapshot: testSnapshot{attemptTime: now, success: true}},
+		RefreshInterval: time.Minute,
+		StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+			return framework.SnapshotStatus{AttemptTime: snapshot.attemptTime, Success: snapshot.success}
+		},
+		Now: func() time.Time {
+			return now
+		},
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 1)
+}
+
+func TestSnapshotEngineFunc(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+
+	engine := SnapshotEngineFunc[testSnapshot](func(ctx context.Context, snapshotTime time.Time) testSnapshot {
+		if ctx == nil {
+			t.Fatal("ctx = nil, want context")
+		}
+		return testSnapshot{attemptTime: snapshotTime, success: true, value: 42}
+	})
+
+	snapshot := engine.Snapshot(context.Background(), now)
+	if snapshot.attemptTime != now || !snapshot.success || snapshot.value != 42 {
+		t.Fatalf("Snapshot() = %+v, want attemptTime %v success true value 42", snapshot, now)
+	}
+}
 
 func TestResolveSnapshotCollectorOptionsDefaults(t *testing.T) {
 	t.Parallel()

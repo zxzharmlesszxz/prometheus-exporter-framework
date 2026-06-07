@@ -1,6 +1,7 @@
 const MetricScopeAbsolute
 const MetricScopeFeature
 const MetricScopeNamespace
+const MetricScopeUnset
 func DefaultFeatureConfigFile
 func FeatureMetricName
 func LoadFeatureConfigFile
@@ -39,6 +40,7 @@ type SmokeContext
 type SmokeSpec
 type SnapshotCollectorOptions
 type SnapshotEngine
+type SnapshotEngineFactory
 type SnapshotEngineFunc
 type SnapshotErrorLogger
 type SnapshotFeatureExtension

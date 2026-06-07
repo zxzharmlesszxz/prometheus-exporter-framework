@@ -378,9 +378,9 @@ func (s *FeatureTestSuite[C, S]) testMetricNameContract(t *testing.T) {
 	if got := s.MetricName("feature", "namespace", s.spec.MetricSpecs[0].ID); got != s.spec.MetricSpecs[0].MetricName("feature", "namespace") {
 		t.Fatalf("MetricName(known) = %q, want descriptor spec name", got)
 	}
-	if got := s.MetricName("feature", "namespace", "missing_metric"); got != "missing_metric" {
-		t.Fatalf("MetricName(missing) = %q, want missing_metric", got)
-	}
+	assertPanic(t, func() {
+		s.MetricName("feature", "namespace", "missing_metric")
+	})
 }
 
 func (s *FeatureTestSuite[C, S]) testCollectorDefaultsAndFailureMetrics(t *testing.T) {
@@ -507,4 +507,14 @@ func (s *FakeSnapshotter[S]) Snapshot(context.Context, time.Time) S {
 // Set replaces the snapshot returned by Snapshot.
 func (s *FakeSnapshotter[S]) Set(snapshot S) {
 	s.snapshot.Store(snapshot)
+}
+
+func assertPanic(t *testing.T, run func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("panic was not raised")
+		}
+	}()
+	run()
 }

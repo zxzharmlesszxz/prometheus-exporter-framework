@@ -80,22 +80,22 @@ func appendSmokeSpec(info SmokeInfo, spec SmokeSpec) SmokeInfo {
 }
 
 func (m ProjectMetadata) requireValid() {
-	requireInjectedDefault("ProjectMetadata.ExporterName", m.ExporterName)
-	requireInjectedDefault("ProjectMetadata.ExporterDescription", m.ExporterDescription)
-	requireInjectedDefault("ProjectMetadata.FeatureName", m.FeatureName)
-	requireInjectedDefault("ProjectMetadata.MetricNamespace", m.MetricNamespace)
-	requireInjectedDefault("ProjectMetadata.DefaultListenAddress", m.DefaultListenAddress)
-	requireListenAddress(m.DefaultListenAddress)
+	RequireInjectedDefault("ProjectMetadata.ExporterName", m.ExporterName)
+	RequireInjectedDefault("ProjectMetadata.ExporterDescription", m.ExporterDescription)
+	RequireInjectedDefault("ProjectMetadata.FeatureName", m.FeatureName)
+	RequireInjectedDefault("ProjectMetadata.MetricNamespace", m.MetricNamespace)
+	RequireInjectedDefault("ProjectMetadata.DefaultListenAddress", m.DefaultListenAddress)
+	RequireListenAddress(m.DefaultListenAddress)
 }
 
-func requireInjectedDefault(name string, value string) string {
+func RequireInjectedDefault(name string, value string) string {
 	if strings.TrimSpace(value) == "" {
 		panic("missing Makefile-injected exporter metadata: " + name)
 	}
 	return value
 }
 
-func requireListenAddress(value string) {
+func RequireListenAddress(value string) {
 	if !strings.HasPrefix(value, ":") {
 		panic("invalid Makefile-injected exporter metadata: default listen address must start with :")
 	}
