@@ -145,10 +145,6 @@ jobs:
           FRAMEWORK_PATH: ${{ github.workspace }}
           VERSION: ${{ inputs.version }}
         run: |
-          if [ -f framework.version ]; then
-            echo "$VERSION" > framework.version
-          fi
-
           go mod edit \
             -require=github.com/zxzharmlesszxz/prometheus-exporter-framework@"$VERSION" \
             -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" \
@@ -246,9 +242,8 @@ jobs:
 
           Please update the scaffold as the framework consumer:
 
-          - framework.version
-          - template/go.mod
-          - template/go.sum
+          - template/go.mod (bump framework version)
+          - template/go.sum (go mod tidy)
           - generated-template files that need API cleanup
 
           Suggested validation:
