@@ -2,6 +2,7 @@ package featurekit
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -340,6 +341,143 @@ func TestLoadFeatureConfigFileOptionalMissingAndStrictParsing(t *testing.T) {
 	}
 	if _, _, err := LoadFeatureConfigFile("demo", configFile, &extensionTestFileConfig{}); err == nil {
 		t.Fatal("LoadFeatureConfigFile(strict yaml) error = nil, want error")
+	}
+}
+
+func TestResolveFeatureConfigReturnsConfigDirectlyWithoutResolverOrConfigFile(t *testing.T) {
+	t.Parallel()
+
+	config := extensionTestConfig{Name: "direct"}
+	resolved, configFile, loaded, err := ResolveFeatureConfig("demo", config, nil, nil)
+	if err != nil {
+		t.Fatalf("ResolveFeatureConfig() error = %v", err)
+	}
+	if resolved.Name != "direct" {
+		t.Fatalf("resolved.Name = %q, want direct", resolved.Name)
+	}
+	if configFile != "" {
+		t.Fatalf("configFile = %q, want empty", configFile)
+	}
+	if loaded {
+		t.Fatal("loaded = true, want false")
+	}
+}
+
+func TestDefaultFeatureConfigFileForEmptyFeatureName(t *testing.T) {
+	t.Parallel()
+
+	if got := DefaultFeatureConfigFile(""); got != "/etc/prometheus/prometheus-exporter-exporter.yml" {
+		t.Fatalf("DefaultFeatureConfigFile('') = %q, want default path", got)
+	}
+	if got := DefaultFeatureConfigFile("  "); got != "/etc/prometheus/prometheus-exporter-exporter.yml" {
+		t.Fatalf("DefaultFeatureConfigFile('  ') = %q, want default path", got)
+	}
+	if got := DefaultFeatureConfigFile("demo"); got != "/etc/prometheus/prometheus-demo-exporter.yml" {
+		t.Fatalf("DefaultFeatureConfigFile('demo') = %q, want demo path", got)
+	}
+}
+
+func TestLoadFeatureConfigFileHappyPath(t *testing.T) {
+	t.Parallel()
+
+	configFile := filepath.Join(t.TempDir(), "feature.yml")
+	if err := os.WriteFile(configFile, []byte("name: from-file\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var cfg extensionTestFileConfig
+	path, loaded, err := LoadFeatureConfigFile("demo", configFile, &cfg)
+	if err != nil {
+		t.Fatalf("LoadFeatureConfigFile() error = %v", err)
+	}
+	if path != configFile {
+		t.Fatalf("path = %q, want %q", path, configFile)
+	}
+	if !loaded {
+		t.Fatal("loaded = false, want true")
+	}
+	if cfg.Name != "from-file" {
+		t.Fatalf("cfg.Name = %q, want from-file", cfg.Name)
+	}
+}
+
+func TestDefaultFeatureConfigNilFuncReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	config := defaultFeatureConfig[extensionTestConfig](nil)
+	if config.Name != "" || config.ConfigFile != "" {
+		t.Fatalf("defaultFeatureConfig(nil) = %+v, want zero value", config)
+	}
+}
+
+func TestFeatureConfigFileNilConfigFileFuncReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	if got := featureConfigFile(extensionTestConfig{}, nil); got != "" {
+		t.Fatalf("featureConfigFile(nil func) = %q, want empty", got)
+	}
+}
+
+func TestFeatureConfigFileNilPointerReturnReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	nilFunc := func(*extensionTestConfig) *string { return nil }
+	if got := featureConfigFile(extensionTestConfig{}, nilFunc); got != "" {
+		t.Fatalf("featureConfigFile(nil return) = %q, want empty", got)
+	}
+}
+
+func TestRegisterCollectorsReturnsNilWhenNewCollectorFuncIsNil(t *testing.T) {
+	t.Parallel()
+
+	feature := NewFeature[extensionTestConfig, extensionTestSnapshot](FeatureSpec[extensionTestConfig, extensionTestSnapshot]{
+		FeatureName: "demo",
+	})
+	if err := feature.RegisterCollectors(framework.FeatureContext{}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+}
+
+func TestRegisterCollectorsReturnsErrorOnDuplicateRegistration(t *testing.T) {
+	t.Parallel()
+
+	feature := NewFeature(NewSnapshotFeatureSpec(SnapshotFeatureSpec[testConfig, testSnapshot]{
+		Options: SpecOptions{
+			FeatureName: "demo",
+		},
+	}))
+
+	registry := prometheus.NewRegistry()
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, registry); err != nil {
+		t.Fatalf("first RegisterCollectors() error = %v", err)
+	}
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, registry); err == nil {
+		t.Fatal("second RegisterCollectors() error = nil, want duplicate registration error")
+	}
+}
+
+func TestRegisterCollectorsPassesNilSnapshotterWhenNewSnapshotterFuncIsNil(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1700000000, 0)
+	feature := NewFeature[testConfig, testSnapshot](FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		NewCollectorFunc: func(_ string, namespace string, logger *slog.Logger, snapshotter framework.Snapshotter[testSnapshot], _ time.Duration) framework.StartableCollector {
+			return NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+				FeatureName:     "demo",
+				Namespace:       namespace,
+				Logger:          logger,
+				Snapshotter:     snapshotter,
+				RefreshInterval: time.Minute,
+				StatusFunc: func(s testSnapshot) framework.SnapshotStatus {
+					return framework.SnapshotStatus{}
+				},
+				Now: func() time.Time { return now },
+			})
+		},
+	})
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
 	}
 }
 

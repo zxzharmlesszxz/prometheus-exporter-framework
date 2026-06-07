@@ -31,7 +31,11 @@ func (FeatureDefaults[C, S]) DefaultConfig() C {
 	return config
 }
 
-func (FeatureDefaults[C, S]) RegisterFlags(app *kingpin.Application, ctx FlagContext, config *C) {}
+func (FeatureDefaults[C, S]) RegisterFlags(app *kingpin.Application, ctx FlagContext, config *C) {
+	_ = app
+	_ = ctx
+	_ = config
+}
 
 func (FeatureDefaults[C, S]) ValidateConfig(config C) error { return nil }
 

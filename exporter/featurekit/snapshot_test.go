@@ -164,6 +164,27 @@ func TestSnapshotEngineFunc(t *testing.T) {
 	}
 }
 
+func TestResolveSnapshotCollectorOptionsFullFallbackChain(t *testing.T) {
+	t.Parallel()
+
+	options := ResolveSnapshotCollectorOptions(SnapshotCollectorOptions[testSnapshot]{})
+	if options.FeatureName != "exporter" {
+		t.Fatalf("FeatureName = %q, want exporter", options.FeatureName)
+	}
+	if options.Namespace != "exporter" {
+		t.Fatalf("Namespace = %q, want exporter", options.Namespace)
+	}
+	if options.Logger == nil {
+		t.Fatal("Logger = nil, want slog.Default()")
+	}
+	if options.Snapshotter != nil {
+		t.Fatalf("Snapshotter = %+v, want nil (no default provided)", options.Snapshotter)
+	}
+	if options.RefreshInterval != framework.DefaultSnapshotRefreshInterval {
+		t.Fatalf("RefreshInterval = %v, want %v", options.RefreshInterval, framework.DefaultSnapshotRefreshInterval)
+	}
+}
+
 func TestResolveSnapshotCollectorOptionsDefaults(t *testing.T) {
 	t.Parallel()
 
