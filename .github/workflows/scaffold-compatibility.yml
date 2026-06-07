@@ -1,0 +1,77 @@
+name: Scaffold Compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
+  FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  scaffold-compatibility:
+    name: Render scaffold against current framework checkout
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.26.3-alpine
+
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash build-base git make
+
+      - name: Checkout framework
+        uses: actions/checkout@v6
+        with:
+          path: framework
+
+      - name: Trust framework checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/framework"
+
+      - name: Checkout scaffold
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.SCAFFOLD_REPOSITORY }}
+          path: scaffold
+          token: ${{ secrets.SCAFFOLD_REPO_TOKEN || github.token }}
+
+      - name: Trust scaffold checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold"
+
+      - name: Render demo exporter
+        working-directory: scaffold
+        run: |
+          make new-exporter \
+            PROJECT_NAME=prometheus-demo-exporter \
+            GO_MODULE=github.com/example/prometheus-demo-exporter \
+            PROJECT_DESC="Prometheus Demo Exporter" \
+            FEATURE_NAME=demo \
+            METRIC_NAMESPACE=demo_exporter \
+            DEFAULT_PORT=9888 \
+            TARGET_DIR="$RUNNER_TEMP/prometheus-demo-exporter"
+
+      - name: Use current framework checkout
+        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
+        run: |
+          go mod edit -replace "$FRAMEWORK_MODULE=$GITHUB_WORKSPACE/framework"
+          go mod tidy
+
+      - name: Verify generated exporter module files
+        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
+        run: |
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          cp go.mod "$tmp/go.mod"
+          cp go.sum "$tmp/go.sum"
+
+          go mod tidy
+          diff -u "$tmp/go.mod" go.mod
