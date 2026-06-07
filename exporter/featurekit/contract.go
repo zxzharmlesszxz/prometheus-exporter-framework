@@ -39,7 +39,9 @@ func (FeatureDefaults[C, S]) RegisterFlags(app *kingpin.Application, ctx FlagCon
 
 func (FeatureDefaults[C, S]) ValidateConfig(config C) error { return nil }
 
-func (FeatureDefaults[C, S]) NewSnapshotter(ctx CollectorContext[C]) (framework.Snapshotter[S], error) { return nil, nil }
+func (FeatureDefaults[C, S]) NewSnapshotter(ctx CollectorContext[C]) (framework.Snapshotter[S], error) {
+	return nil, nil
+}
 
 func (FeatureDefaults[C, S]) DefaultSnapshotter() framework.Snapshotter[S] {
 	return nil
@@ -47,7 +49,9 @@ func (FeatureDefaults[C, S]) DefaultSnapshotter() framework.Snapshotter[S] {
 
 func (FeatureDefaults[C, S]) NewMetrics(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S] { return nil }
 
-func (FeatureDefaults[C, S]) SnapshotStatus(snapshot S) framework.SnapshotStatus { return framework.SnapshotStatus{} }
+func (FeatureDefaults[C, S]) SnapshotStatus(snapshot S) framework.SnapshotStatus {
+	return framework.SnapshotStatus{}
+}
 
 func (FeatureDefaults[C, S]) RuntimeConfig(ctx RuntimeConfigContext[C]) []any { return nil }
 
