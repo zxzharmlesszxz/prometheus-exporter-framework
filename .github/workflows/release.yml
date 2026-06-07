@@ -126,46 +126,6 @@ jobs:
       - name: Run checks
         run: make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
 
-      - name: Checkout scaffold for preflight
-        if: steps.version_state.outputs.tag_exists != 'true'
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.SCAFFOLD_REPOSITORY }}
-          token: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-          path: scaffold-preflight
-
-      - name: Trust scaffold preflight checkout directory
-        if: steps.version_state.outputs.tag_exists != 'true'
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold-preflight"
-
-      - name: Preflight scaffold consumption
-        if: steps.version_state.outputs.tag_exists != 'true'
-        working-directory: scaffold-preflight
-        env:
-          FRAMEWORK_PATH: ${{ github.workspace }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          go mod edit \
-            -require=github.com/zxzharmlesszxz/prometheus-exporter-framework@"$VERSION" \
-            -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" \
-            template/go.mod
-          (cd template && go mod tidy)
-
-          find . -type f \( -name '*.md' -o -name '*.go' -o -name '*.mod' \) -print0 \
-            | xargs -0 perl -0pi -e 's#github\.com/zxzharmlesszxz/prometheus-exporter-framework v[0-9A-Za-z.+-]+#github.com/zxzharmlesszxz/prometheus-exporter-framework $ENV{VERSION}#g'
-
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-          scripts/render.sh \
-            --project-name prometheus-demo-exporter \
-            --module github.com/zxzharmlesszxz/prometheus-demo-exporter \
-            --description "Prometheus Demo Exporter" \
-            --feature-name demo \
-            --namespace demo_exporter \
-            --port 9888 \
-            --target-dir "$tmp"
-          (cd "$tmp" && go mod edit -replace=github.com/zxzharmlesszxz/prometheus-exporter-framework="$FRAMEWORK_PATH" && go mod tidy && make go-check GO=go GOFMT=gofmt)
-
       - name: Create annotated tag
         if: steps.version_state.outputs.tag_exists != 'true'
         env:
@@ -251,7 +211,7 @@ jobs:
           - make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD=90.0
           - render a demo exporter and run make go-check
 
-          The framework release workflow already ran scaffold preflight against the release candidate. This issue is the handoff for the scaffold repository to consume the published tag.
+          This issue is the handoff for the scaffold repository to consume the published tag.
           EOF
 
           gh issue create \
