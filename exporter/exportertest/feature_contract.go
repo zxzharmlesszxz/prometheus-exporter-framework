@@ -40,6 +40,7 @@ func RunFeatureContract(t *testing.T, config FeatureContractConfig) {
 	if config.RegisterCollectors || config.LastCollectionSuccessMetric != "" {
 		t.Run("registers collectors", func(t *testing.T) {
 			feature := config.NewFeature()
+			ParseFeatureFlags(t, feature, config.FlagArgs)
 			registry := prometheus.NewRegistry()
 			if err := registerCollectors(t, feature, config.FeatureContext, registry); err != nil {
 				t.Fatalf("RegisterCollectors() error = %v", err)
