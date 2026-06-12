@@ -1,0 +1,20 @@
+groups:
+  - name: __PROJECT_NAME__
+    rules:
+      - alert: __FEATURE_NAME__ExporterDown
+        expr: up{job="__FEATURE_NAME___exporter"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: __PROJECT_DESC__ is down
+          description: Prometheus cannot scrape __PROJECT_NAME__.
+
+      - alert: __FEATURE_NAME__ExporterCollectionFailed
+        expr: __METRIC_NAMESPACE___last_collection_success{job="__FEATURE_NAME___exporter"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: __PROJECT_DESC__ collection is failing
+          description: __PROJECT_NAME__ has not completed a successful collection for at least 10 minutes.
