@@ -36,7 +36,7 @@ help: ## Show available make targets.
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "};{printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
 scripts-check: ## Check scaffold shell scripts for syntax errors.
-	@bash -n scripts/render.sh
+	@sh -n scripts/render.sh
 	@bash -n scripts/scaffold-drift.sh
 
 tools-check: ## Check local tools required by generated Go checks.

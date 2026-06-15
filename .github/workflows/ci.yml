@@ -80,6 +80,7 @@ jobs:
       image: golang:1.26.3-alpine
     steps:
       - name: Prepare Alpine
+        shell: sh
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout

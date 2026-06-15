@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 export LC_ALL=C
 
 usage() {
@@ -59,7 +59,7 @@ docker_smoke_exporter_args='--$(FEATURE_NAME).config-file=$(FEATURE_CONFIG_CONTA
 docker_smoke_extra_metrics=""
 target_dir=""
 
-while [[ $# -gt 0 ]]; do
+while [ "$#" -gt 0 ]; do
   case "$1" in
     --project-name)
       project_name="${2:-}"
@@ -113,7 +113,7 @@ while [[ $# -gt 0 ]]; do
       target_dir="${2:-}"
       shift 2
       ;;
-    -h|--help)
+    -h | --help)
       usage
       exit 0
       ;;
@@ -125,49 +125,49 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$project_name" || -z "$target_dir" ]]; then
+if [ -z "$project_name" ] || [ -z "$target_dir" ]; then
   usage >&2
   exit 1
 fi
 
 go_module="${go_module:-$project_name}"
 project_desc="${project_desc:-$project_name}"
-if [[ -z "$feature_name" ]]; then
+if [ -z "$feature_name" ]; then
   stem="${project_name#prometheus-}"
   stem="${stem%-exporter}"
-  feature_name="${stem//-/_}"
+  feature_name="$(printf '%s' "$stem" | tr '-' '_')"
 fi
 feature_namespace="${feature_namespace:-$feature_name}"
 metric_namespace="${metric_namespace:-${feature_name}_exporter}"
 feature_config_file="${feature_config_file:-${project_name}.yml}"
 
-if [[ ! "$feature_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+if ! printf '%s\n' "$feature_name" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
   echo "--feature-name must be a valid Go/Prometheus identifier fragment: $feature_name" >&2
   exit 1
 fi
-if [[ ! "$feature_namespace" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+if ! printf '%s\n' "$feature_namespace" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
   echo "--feature-namespace must be a valid Prometheus metric namespace: $feature_namespace" >&2
   exit 1
 fi
-if [[ ! "$metric_namespace" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+if ! printf '%s\n' "$metric_namespace" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
   echo "--namespace must be a valid Prometheus metric namespace: $metric_namespace" >&2
   exit 1
 fi
-if [[ ! "$default_port" =~ ^[0-9]+$ ]]; then
+if ! printf '%s\n' "$default_port" | grep -Eq '^[0-9]+$'; then
   echo "--port must be numeric: $default_port" >&2
   exit 1
 fi
-if [[ -z "$docker_smoke_metric" ]]; then
+if [ -z "$docker_smoke_metric" ]; then
   echo "--docker-smoke-metric must not be empty" >&2
   exit 1
 fi
 
-if [[ -e "$target_dir" && -n "$(find "$target_dir" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+if [ -e "$target_dir" ] && [ -n "$(find "$target_dir" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
   echo "target dir exists and is not empty: $target_dir" >&2
   exit 1
 fi
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_dir="$(cd "$script_dir/.." && pwd)"
 template_dir="$repo_dir/template"
 
@@ -188,58 +188,65 @@ export DOCKER_SMOKE_EXPORTER_ARGS="$docker_smoke_exporter_args"
 export DOCKER_SMOKE_EXTRA_METRICS="$docker_smoke_extra_metrics"
 
 sed_replacement() {
-  local value="$1"
-  value="${value//\\/\\\\}"
-  value="${value//&/\\&}"
-  value="${value//|/\\|}"
-  printf '%s' "$value"
+  printf '%s' "$1" | sed \
+    -e 's@\\@\\\\@g' \
+    -e 's@&@\\\&@g' \
+    -e 's@|@\\|@g'
 }
 
-project_name_sed="$(sed_replacement "$PROJECT_NAME")"
-go_module_sed="$(sed_replacement "$GO_MODULE")"
-project_desc_sed="$(sed_replacement "$PROJECT_DESC")"
-feature_name_sed="$(sed_replacement "$FEATURE_NAME")"
-feature_namespace_sed="$(sed_replacement "$FEATURE_NAMESPACE")"
-metric_namespace_sed="$(sed_replacement "$METRIC_NAMESPACE")"
-default_port_sed="$(sed_replacement "$DEFAULT_PORT")"
-feature_config_file_sed="$(sed_replacement "$FEATURE_CONFIG_FILE")"
-docker_smoke_metric_sed="$(sed_replacement "$DOCKER_SMOKE_METRIC")"
-docker_smoke_run_options_sed="$(sed_replacement "$DOCKER_SMOKE_RUN_OPTIONS")"
-docker_smoke_exporter_args_sed="$(sed_replacement "$DOCKER_SMOKE_EXPORTER_ARGS")"
-docker_smoke_extra_metrics_sed="$(sed_replacement "$DOCKER_SMOKE_EXTRA_METRICS")"
+export PROJECT_NAME_SED="$(sed_replacement "$PROJECT_NAME")"
+export GO_MODULE_SED="$(sed_replacement "$GO_MODULE")"
+export PROJECT_DESC_SED="$(sed_replacement "$PROJECT_DESC")"
+export FEATURE_NAME_SED="$(sed_replacement "$FEATURE_NAME")"
+export FEATURE_NAMESPACE_SED="$(sed_replacement "$FEATURE_NAMESPACE")"
+export METRIC_NAMESPACE_SED="$(sed_replacement "$METRIC_NAMESPACE")"
+export DEFAULT_PORT_SED="$(sed_replacement "$DEFAULT_PORT")"
+export FEATURE_CONFIG_FILE_SED="$(sed_replacement "$FEATURE_CONFIG_FILE")"
+export DOCKER_SMOKE_METRIC_SED="$(sed_replacement "$DOCKER_SMOKE_METRIC")"
+export DOCKER_SMOKE_RUN_OPTIONS_SED="$(sed_replacement "$DOCKER_SMOKE_RUN_OPTIONS")"
+export DOCKER_SMOKE_EXPORTER_ARGS_SED="$(sed_replacement "$DOCKER_SMOKE_EXPORTER_ARGS")"
+export DOCKER_SMOKE_EXTRA_METRICS_SED="$(sed_replacement "$DOCKER_SMOKE_EXTRA_METRICS")"
 
-find "$target_dir" -type f -print0 | while IFS= read -r -d '' file; do
-  sed -i.bak \
-    -e "s|__PROJECT_NAME__|$project_name_sed|g" \
-    -e "s|__GO_MODULE__|$go_module_sed|g" \
-    -e "s|__PROJECT_DESC__|$project_desc_sed|g" \
-    -e "s|__FEATURE_NAME__|$feature_name_sed|g" \
-    -e "s|__FEATURE_NAMESPACE__|$feature_namespace_sed|g" \
-    -e "s|__METRIC_NAMESPACE__|$metric_namespace_sed|g" \
-    -e "s|__DEFAULT_PORT__|$default_port_sed|g" \
-    -e "s|__FEATURE_CONFIG_FILE__|$feature_config_file_sed|g" \
-    -e "s|__DOCKER_SMOKE_METRIC__|$docker_smoke_metric_sed|g" \
-    -e "s|__DOCKER_SMOKE_RUN_OPTIONS__|$docker_smoke_run_options_sed|g" \
-    -e "s|__DOCKER_SMOKE_EXPORTER_ARGS__|$docker_smoke_exporter_args_sed|g" \
-    -e "s|__DOCKER_SMOKE_EXTRA_METRICS__|$docker_smoke_extra_metrics_sed|g" \
-    "$file"
-  rm -f "$file.bak"
-done
+find "$target_dir" -type f -exec sh -c '
+  for file do
+    sed -i.bak \
+      -e "s|__PROJECT_NAME__|$PROJECT_NAME_SED|g" \
+      -e "s|__GO_MODULE__|$GO_MODULE_SED|g" \
+      -e "s|__PROJECT_DESC__|$PROJECT_DESC_SED|g" \
+      -e "s|__FEATURE_NAME__|$FEATURE_NAME_SED|g" \
+      -e "s|__FEATURE_NAMESPACE__|$FEATURE_NAMESPACE_SED|g" \
+      -e "s|__METRIC_NAMESPACE__|$METRIC_NAMESPACE_SED|g" \
+      -e "s|__DEFAULT_PORT__|$DEFAULT_PORT_SED|g" \
+      -e "s|__FEATURE_CONFIG_FILE__|$FEATURE_CONFIG_FILE_SED|g" \
+      -e "s|__DOCKER_SMOKE_METRIC__|$DOCKER_SMOKE_METRIC_SED|g" \
+      -e "s|__DOCKER_SMOKE_RUN_OPTIONS__|$DOCKER_SMOKE_RUN_OPTIONS_SED|g" \
+      -e "s|__DOCKER_SMOKE_EXPORTER_ARGS__|$DOCKER_SMOKE_EXPORTER_ARGS_SED|g" \
+      -e "s|__DOCKER_SMOKE_EXTRA_METRICS__|$DOCKER_SMOKE_EXTRA_METRICS_SED|g" \
+      "$file"
+    rm -f "$file.bak"
+  done
+' sh {} +
 
-find "$target_dir" -depth -name '*__PROJECT_NAME__*' -print | while IFS= read -r path; do
-  new_path="${path//__PROJECT_NAME__/$project_name}"
-  mv "$path" "$new_path"
-done
+find "$target_dir" -depth -name '*__PROJECT_NAME__*' -exec sh -c '
+  for path do
+    new_path=$(printf "%s\n" "$path" | sed "s|__PROJECT_NAME__|$PROJECT_NAME_SED|g")
+    mv "$path" "$new_path"
+  done
+' sh {} +
 
-find "$target_dir" -depth -name '*__FEATURE_CONFIG_FILE__*' -print | while IFS= read -r path; do
-  new_path="${path//__FEATURE_CONFIG_FILE__/$feature_config_file}"
-  mv "$path" "$new_path"
-done
+find "$target_dir" -depth -name '*__FEATURE_CONFIG_FILE__*' -exec sh -c '
+  for path do
+    new_path=$(printf "%s\n" "$path" | sed "s|__FEATURE_CONFIG_FILE__|$FEATURE_CONFIG_FILE_SED|g")
+    mv "$path" "$new_path"
+  done
+' sh {} +
 
-find "$target_dir" -depth -name '*__FEATURE_NAME__*' -print | while IFS= read -r path; do
-  new_path="${path//__FEATURE_NAME__/$feature_name}"
-  mv "$path" "$new_path"
-done
+find "$target_dir" -depth -name '*__FEATURE_NAME__*' -exec sh -c '
+  for path do
+    new_path=$(printf "%s\n" "$path" | sed "s|__FEATURE_NAME__|$FEATURE_NAME_SED|g")
+    mv "$path" "$new_path"
+  done
+' sh {} +
 
 cat <<EOF
 Rendered $project_name into $target_dir
