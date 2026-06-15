@@ -2,14 +2,19 @@ name: Scaffold Compatibility
 
 on:
   push:
+    branches:
+      - "**"
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
-  SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
   FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
 
 defaults:
@@ -26,30 +31,17 @@ jobs:
     steps:
       - name: Prepare Alpine
         shell: sh
-        run: apk add --no-cache bash build-base git make
+        run: apk add --no-cache bash build-base ca-certificates git make
 
-      - name: Checkout framework
+      - name: Checkout
         uses: actions/checkout@v6
-        with:
-          path: framework
 
-      - name: Trust framework checkout directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/framework"
-
-      - name: Checkout scaffold
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.SCAFFOLD_REPOSITORY }}
-          path: scaffold
-          token: ${{ secrets.SCAFFOLD_REPO_TOKEN || github.token }}
-
-      - name: Trust scaffold checkout directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE/scaffold"
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Render demo exporter
-        working-directory: scaffold
         run: |
-          make new-exporter \
+          make -C scaffold new-exporter \
             PROJECT_NAME=prometheus-demo-exporter \
             GO_MODULE=github.com/example/prometheus-demo-exporter \
             PROJECT_DESC="Prometheus Demo Exporter" \
@@ -61,7 +53,7 @@ jobs:
       - name: Use current framework checkout
         working-directory: ${{ runner.temp }}/prometheus-demo-exporter
         run: |
-          go mod edit -replace "$FRAMEWORK_MODULE=$GITHUB_WORKSPACE/framework"
+          go mod edit -replace "$FRAMEWORK_MODULE=$GITHUB_WORKSPACE"
           go mod tidy
 
       - name: Verify generated exporter module files
@@ -75,3 +67,9 @@ jobs:
 
           go mod tidy
           diff -u "$tmp/go.mod" go.mod
+          diff -u "$tmp/go.sum" go.sum
+
+      - name: Check generated exporter
+        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
+        run: |
+          make go-check GO=go GOFMT=gofmt

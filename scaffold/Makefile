@@ -5,6 +5,7 @@ PROJECT_NAME ?=
 GO_MODULE ?=
 PROJECT_DESC ?=
 FEATURE_NAME ?=
+FEATURE_NAMESPACE ?=
 METRIC_NAMESPACE ?=
 DEFAULT_PORT ?=
 FEATURE_CONFIG_FILE ?=
@@ -18,6 +19,7 @@ CHECK_PROJECT_NAME ?= prometheus-demo-exporter
 CHECK_GO_MODULE ?= github.com/zxzharmlesszxz/prometheus-demo-exporter
 CHECK_PROJECT_DESC ?= Prometheus Demo Exporter
 CHECK_FEATURE_NAME ?= demo
+CHECK_FEATURE_NAMESPACE ?= demo
 CHECK_METRIC_NAMESPACE ?= demo_exporter
 CHECK_DEFAULT_PORT ?= 9888
 CHECK_FEATURE_CONFIG_FILE ?= $(CHECK_PROJECT_NAME).yml
@@ -53,6 +55,7 @@ render-check: scripts-check symbol-diff-check ## Render a demo exporter and run 
 		--module "$(CHECK_GO_MODULE)" \
 		--description "$(CHECK_PROJECT_DESC)" \
 		--feature-name "$(CHECK_FEATURE_NAME)" \
+		--feature-namespace "$(CHECK_FEATURE_NAMESPACE)" \
 		--namespace "$(CHECK_METRIC_NAMESPACE)" \
 		--port "$(CHECK_DEFAULT_PORT)" \
 		--feature-config-file "$(CHECK_FEATURE_CONFIG_FILE)" \
@@ -68,12 +71,13 @@ render-check: scripts-check symbol-diff-check ## Render a demo exporter and run 
 
 check: render-check ## Run scaffold checks used by CI.
 
-new-exporter: require-project-name require-target-dir ## Render a new exporter. Set PROJECT_NAME and optionally TARGET_DIR/GO_MODULE/PROJECT_DESC/FEATURE_NAME/METRIC_NAMESPACE/DEFAULT_PORT.
+new-exporter: require-project-name require-target-dir ## Render a new exporter. Set PROJECT_NAME and optionally TARGET_DIR/GO_MODULE/PROJECT_DESC/FEATURE_NAME/FEATURE_NAMESPACE/METRIC_NAMESPACE/DEFAULT_PORT.
 	@scripts/render.sh \
 		--project-name "$(PROJECT_NAME)" \
 		$(if $(GO_MODULE),--module "$(GO_MODULE)",) \
 		$(if $(PROJECT_DESC),--description "$(PROJECT_DESC)",) \
 		$(if $(FEATURE_NAME),--feature-name "$(FEATURE_NAME)",) \
+		$(if $(FEATURE_NAMESPACE),--feature-namespace "$(FEATURE_NAMESPACE)",) \
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \
@@ -86,6 +90,7 @@ drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR,
 		$(if $(GO_MODULE),--module "$(GO_MODULE)",) \
 		$(if $(PROJECT_DESC),--description "$(PROJECT_DESC)",) \
 		$(if $(FEATURE_NAME),--feature-name "$(FEATURE_NAME)",) \
+		$(if $(FEATURE_NAMESPACE),--feature-namespace "$(FEATURE_NAMESPACE)",) \
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \
@@ -105,6 +110,7 @@ drift-sync: require-target-dir ## Sync scaffold-managed files into an existing e
 		$(if $(GO_MODULE),--module "$(GO_MODULE)",) \
 		$(if $(PROJECT_DESC),--description "$(PROJECT_DESC)",) \
 		$(if $(FEATURE_NAME),--feature-name "$(FEATURE_NAME)",) \
+		$(if $(FEATURE_NAMESPACE),--feature-namespace "$(FEATURE_NAMESPACE)",) \
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \

@@ -10,4 +10,10 @@
 // feature-specific behavior in their own files, while the framework keeps the
 // standard method set, spec wiring, feature construction, snapshot engine
 // wiring, config flag spec registration, and metric descriptor loading reusable.
+// Framework-owned collection metrics should use the exporter metric namespace;
+// domain metrics may use absolute rendered names when a scaffolded exporter
+// wants a domain-specific feature namespace distinct from the Go feature name.
+// FileScrapeMetricSpecs provides the standard source-health metric contract for
+// file-backed domain sources; combine it with exporter.FileScraper and
+// exporter.FileScrapeMetrics in concrete feature code.
 package featurekit

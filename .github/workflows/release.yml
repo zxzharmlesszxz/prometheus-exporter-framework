@@ -17,7 +17,6 @@ concurrency:
 
 env:
   COVERAGE_THRESHOLD: "90.0"
-  SCAFFOLD_REPOSITORY: zxzharmlesszxz/prometheus-exporter-scaffold
 
 defaults:
   run:
@@ -33,7 +32,7 @@ jobs:
     steps:
       - name: Prepare Alpine
         shell: sh
-        run: apk add --no-cache bash build-base git github-cli make perl
+        run: apk add --no-cache bash build-base ca-certificates git github-cli make perl
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -58,17 +57,6 @@ jobs:
             echo "v2+ requires a /v2 module path before it can be released"
             exit 1
           fi
-
-      - name: Validate scaffold access
-        env:
-          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "SCAFFOLD_REPO_TOKEN is required to verify and notify $SCAFFOLD_REPOSITORY"
-            exit 1
-          fi
-
-          gh repo view "$SCAFFOLD_REPOSITORY" --json nameWithOwner -q .nameWithOwner >/dev/null
 
       - name: Check version is releasable
         id: version_state
@@ -113,6 +101,9 @@ jobs:
           RELEASE_COMMIT: ${{ steps.version_state.outputs.release_commit }}
         run: git switch --detach "$RELEASE_COMMIT"
 
+      - name: Download modules
+        run: go mod download
+
       - name: Verify module files
         run: |
           tmp="$(mktemp -d)"
@@ -123,8 +114,11 @@ jobs:
           diff -u "$tmp/go.mod" go.mod
           diff -u "$tmp/go.sum" go.sum
 
-      - name: Run checks
+      - name: Run framework checks
         run: make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
+
+      - name: Run scaffold checks
+        run: make scaffold-compatibility
 
       - name: Create annotated tag
         if: steps.version_state.outputs.tag_exists != 'true'
@@ -153,68 +147,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
-        run: gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$VERSION"
-
-  notify-scaffold:
-    name: Notify exporter scaffold
-    runs-on: ubuntu-24.04
-    container:
-      image: golang:1.26.3-alpine
-    needs:
-      - publish-release
-
-    steps:
-      - name: Prepare Alpine
-        shell: sh
-        run: apk add --no-cache bash github-cli
-
-      - name: Open scaffold update issue
-        env:
-          GH_TOKEN: ${{ secrets.SCAFFOLD_REPO_TOKEN }}
-          VERSION: ${{ inputs.version }}
-          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "SCAFFOLD_REPO_TOKEN is required to open an issue in $SCAFFOLD_REPOSITORY"
-            exit 1
-          fi
-
-          title="Update prometheus-exporter-framework to $VERSION"
-          existing_issue="$(
-            gh issue list \
-              --repo "$SCAFFOLD_REPOSITORY" \
-              --state open \
-              --search "$VERSION in:title" \
-              --json title,url \
-              --jq ".[] | select(.title == \"$title\") | .url" \
-              | head -n 1
-          )"
-          if [ -n "$existing_issue" ]; then
-            echo "scaffold update issue already exists: $existing_issue"
-            exit 0
-          fi
-
-          body="$(mktemp)"
-          cat > "$body" <<EOF
-          prometheus-exporter-framework $VERSION has been released.
-
-          Release: $RELEASE_URL
-
-          Please update the scaffold as the framework consumer:
-
-          - template/go.mod (bump framework version)
-          - template/go.sum (go mod tidy)
-          - generated-template files that need API cleanup
-
-          Suggested validation:
-
-          - make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD=90.0
-          - render a demo exporter and run make go-check
-
-          This issue is the handoff for the scaffold repository to consume the published tag.
-          EOF
-
-          gh issue create \
-            --repo "$SCAFFOLD_REPOSITORY" \
-            --title "$title" \
-            --body-file "$body"
+          gh release create "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "$VERSION"

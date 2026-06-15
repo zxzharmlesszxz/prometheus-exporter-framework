@@ -27,6 +27,8 @@ Render metadata overrides:
   --module MODULE        Defaults to module path from go.mod.
   --description TEXT     Defaults to rendered exporter description, README H1, or project name.
   --feature-name NAME    Defaults to FEATURE_NAME from Makefile.mk or derived.
+  --feature-namespace NAME
+                         Defaults to FEATURE_NAMESPACE from Makefile.mk or feature name.
   --namespace NAME       Defaults to METRIC_NAMESPACE from Makefile.mk or derived.
   --port PORT            Defaults to DEFAULT_PORT from Makefile.mk or 9888.
   --feature-config-file NAME
@@ -120,6 +122,7 @@ project_name=""
 go_module=""
 project_desc=""
 feature_name=""
+feature_namespace=""
 metric_namespace=""
 default_port=""
 feature_config_file=""
@@ -255,6 +258,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --feature-name)
       feature_name="${2:-}"
+      shift 2
+      ;;
+    --feature-namespace)
+      feature_namespace="${2:-}"
       shift 2
       ;;
     --namespace)
@@ -1006,6 +1013,12 @@ if [[ -z "$feature_name" ]]; then
   stem="${stem%-exporter}"
   feature_name="${stem//-/_}"
 fi
+if [[ -z "$feature_namespace" ]]; then
+  feature_namespace="$(detect_makefile_mk_var "FEATURE_NAMESPACE")"
+fi
+if [[ -z "$feature_namespace" ]]; then
+  feature_namespace="$feature_name"
+fi
 if [[ -z "$metric_namespace" ]]; then
   metric_namespace="$(detect_namespace)"
 fi
@@ -1025,7 +1038,7 @@ if [[ -z "$docker_smoke_metric" ]]; then
   docker_smoke_metric="$(detect_docker_smoke_metric)"
 fi
 if [[ -z "$docker_smoke_metric" ]]; then
-  docker_smoke_metric='$(FEATURE_NAME)_example_value 1'
+  docker_smoke_metric='$(FEATURE_NAMESPACE)_example_value 1'
 fi
 if [[ -z "$docker_smoke_run_options" ]]; then
   docker_smoke_run_options="$(detect_makefile_mk_var "DOCKER_SMOKE_RUN_OPTIONS")"
@@ -1063,6 +1076,7 @@ trap 'rm -rf "$rendered_dir"' EXIT
   --module "${go_module:-$project_name}" \
   --description "$project_desc" \
   --feature-name "$feature_name" \
+  --feature-namespace "$feature_namespace" \
   --namespace "$metric_namespace" \
   --port "$default_port" \
   --feature-config-file "$feature_config_file" \

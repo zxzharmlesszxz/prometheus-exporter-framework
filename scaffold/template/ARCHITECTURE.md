@@ -43,7 +43,19 @@ them through the scaffold sync flow only.
 3. Framework `featurekit.Feature` registers common flags such as `--__FEATURE_NAME__.refresh-interval` and `--__FEATURE_NAME__.config-file`, then delegates feature-specific flag specs and behavior through the framework-owned feature contract.
 4. Framework `featurekit.Feature` builds a typed snapshotter and collector from the extension-backed spec, then registers and starts the collector.
 5. `framework.SnapshotCollector` refreshes data in a background worker every `--__FEATURE_NAME__.refresh-interval`; scrapes read the latest completed snapshot.
-6. The collector exports domain metrics and collection health metrics.
+6. The collector exports domain metrics under the feature namespace and
+   collection health metrics under the exporter framework namespace.
+
+## Metric Namespaces
+
+- `FEATURE_NAME` names the Go feature package and runtime flags such as
+  `--__FEATURE_NAME__.config-file`.
+- `FEATURE_NAMESPACE` prefixes domain metrics owned by this exporter, such as
+  `__FEATURE_NAMESPACE___example_value`.
+- `METRIC_NAMESPACE` prefixes framework-owned exporter health metrics, such as
+  `__METRIC_NAMESPACE___last_collection_success`.
+  `__METRIC_NAMESPACE___collection_duration_seconds` is a framework-owned
+  histogram for the exporter refresh loop duration.
 
 ## Failure Semantics
 

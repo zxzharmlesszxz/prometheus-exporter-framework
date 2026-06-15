@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   COVERAGE_THRESHOLD: "90.0"
 
@@ -15,16 +19,15 @@ defaults:
     shell: bash
 
 jobs:
-  module-checks:
-    name: Module checks
+  framework:
+    name: Framework
     runs-on: ubuntu-24.04
     container:
       image: golang:1.26.3-alpine
-
     steps:
       - name: Prepare Alpine
         shell: sh
-        run: apk add --no-cache bash build-base git make
+        run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -69,3 +72,21 @@ jobs:
             coverage.out
             coverage.txt
           if-no-files-found: ignore
+
+  scaffold:
+    name: Scaffold
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.26.3-alpine
+    steps:
+      - name: Prepare Alpine
+        run: apk add --no-cache bash build-base ca-certificates git make
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run scaffold checks
+        run: make scaffold-compatibility GO=go GOFMT=gofmt

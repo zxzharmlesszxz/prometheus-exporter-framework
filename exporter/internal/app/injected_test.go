@@ -43,6 +43,9 @@ func TestExporterInfoFromProjectMetadata(t *testing.T) {
 	if info.Metrics.BuildInfo != "demo_exporter_build_info" {
 		t.Fatalf("Metrics.BuildInfo = %q", info.Metrics.BuildInfo)
 	}
+	if info.Metrics.CollectionDurationSeconds != "demo_exporter_collection_duration_seconds" {
+		t.Fatalf("Metrics.CollectionDurationSeconds = %q", info.Metrics.CollectionDurationSeconds)
+	}
 	if info.Metrics.LastCollectionSuccess != "demo_exporter_last_collection_success" {
 		t.Fatalf("Metrics.LastCollectionSuccess = %q", info.Metrics.LastCollectionSuccess)
 	}

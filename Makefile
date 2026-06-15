@@ -1,21 +1,18 @@
 GO ?= go
 GOFMT ?= gofmt
-DOCKER ?= docker
 STATICCHECK_VERSION ?= v0.7.0
 STATICCHECK ?= $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 STATICCHECK_GOFLAGS ?= -buildvcs=false
 COVERAGE_PROFILE ?= coverage.out
 COVERAGE_REPORT ?= coverage.txt
 COVERAGE_THRESHOLD ?= 90.0
-DOCKER_IMAGE ?= prometheus-exporter-framework:smoke
-DOCKER_HTTP_IMAGE ?= busybox:1.36
 SMOKE_VERSION ?= v9.8.7
 SMOKE_BRANCH ?= smoke-branch
 SMOKE_REVISION ?= abc123def
 SMOKE_BUILD_USER ?= smoke-test
 SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 
-.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke docker-build docker-smoke-image docker-smoke check clean
+.PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke check clean
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
 
 help: ## Show available make targets.
@@ -73,45 +70,26 @@ coverage-check: coverage ## Enforce the coverage threshold.
 smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" $(GO) test ./smoke -run TestBinarySmoke -count=1
 
-docker-build: ## Build the Docker image used by docker-smoke.
-	$(DOCKER) build \
-		--build-arg VERSION=$(SMOKE_VERSION) \
-		--build-arg BRANCH=$(SMOKE_BRANCH) \
-		--build-arg REVISION=$(SMOKE_REVISION) \
-		--build-arg BUILD_USER=$(SMOKE_BUILD_USER) \
-		--build-arg BUILD_DATE=$(SMOKE_BUILD_DATE) \
-		-t $(DOCKER_IMAGE) \
-		.
-
-docker-smoke-image: ## Smoke-test an already built Docker image.
-	@version_output="$$( $(DOCKER) run --rm $(DOCKER_IMAGE) --version 2>&1 )"; \
-	echo "$$version_output"; \
-	echo "$$version_output" | grep -F "$(SMOKE_VERSION)" >/dev/null; \
-	echo "$$version_output" | grep -F "$(SMOKE_BRANCH)" >/dev/null; \
-	echo "$$version_output" | grep -F "$(SMOKE_REVISION)" >/dev/null
-	@cid="$$( $(DOCKER) run -d --rm $(DOCKER_IMAGE) --log.level=error --web.listen-address=:9900 )"; \
-	trap '$(DOCKER) rm -f '"'"'$$cid'"'"' >/dev/null 2>&1 || true' EXIT; \
-	i=0; \
-	while [ "$$i" -lt 60 ]; do \
-		i=$$((i + 1)); \
-		if $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:9900/healthz 2>/dev/null | grep -qx 'ok'; then \
-			break; \
-		fi; \
-		if [ "$$i" -eq 60 ]; then \
-			$(DOCKER) logs "$$cid"; \
-			exit 1; \
-		fi; \
-		sleep 1; \
-	done; \
-	metrics="$$( $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:9900/metrics )"; \
-	echo "$$metrics" | grep -F "exporter_framework_build_info" >/dev/null; \
-	echo "$$metrics" | grep -F 'version="$(SMOKE_VERSION)"' >/dev/null; \
-	echo "$$metrics" | grep -F 'branch="$(SMOKE_BRANCH)"' >/dev/null; \
-	echo "$$metrics" | grep -F 'revision="$(SMOKE_REVISION)"' >/dev/null
-
-docker-smoke: docker-build docker-smoke-image ## Build and smoke-test the Docker image.
-
 check: fmt-check vet staticcheck coverage-check smoke test-race public-api-check ## Run the standard maintenance check.
 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
+
+.PHONY: scaffold-compatibility
+scaffold-compatibility: ## Render a demo exporter from local scaffold and run its Go-only checks.
+	@set -e; \
+	tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	target="$$tmp/prometheus-demo-exporter"; \
+	$(MAKE) -C scaffold new-exporter \
+		PROJECT_NAME=prometheus-demo-exporter \
+		GO_MODULE=github.com/example/prometheus-demo-exporter \
+		PROJECT_DESC="Prometheus Demo Exporter" \
+		FEATURE_NAME=demo \
+		METRIC_NAMESPACE=demo_exporter \
+		DEFAULT_PORT=9888 \
+		TARGET_DIR="$$target"; \
+	cd "$$target"; \
+	$(GO) mod edit -replace github.com/zxzharmlesszxz/prometheus-exporter-framework="$(CURDIR)"; \
+	$(GO) mod tidy; \
+	$(MAKE) go-check GO="$(GO)" GOFMT="$(GOFMT)"

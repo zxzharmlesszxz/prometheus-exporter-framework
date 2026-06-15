@@ -10,10 +10,11 @@ Usage:
     --module prometheus-demo-exporter \
     --description "Prometheus Demo Exporter" \
     --feature-name demo \
+    --feature-namespace demo \
     --namespace demo_exporter \
     --port 9888 \
     --feature-config-file prometheus-demo-exporter.yml \
-    --docker-smoke-metric '$(FEATURE_NAME)_example_value 1' \
+    --docker-smoke-metric '$(FEATURE_NAMESPACE)_example_value 1' \
     --docker-smoke-run-options '-v "$(CURDIR)/$(FEATURE_CONFIG_PATH):$(FEATURE_CONFIG_CONTAINER_PATH):ro"' \
     --docker-smoke-exporter-args '' \
     --docker-smoke-extra-metrics '' \
@@ -27,12 +28,14 @@ Optional:
   --module       Defaults to --project-name.
   --description Defaults to --project-name.
   --feature-name Defaults to project name without prometheus- prefix and -exporter suffix, with '-' replaced by '_'.
+  --feature-namespace
+               Defaults to --feature-name. Used as the domain metric prefix.
   --namespace   Defaults to <feature-name>_exporter.
   --port        Defaults to 9888.
   --feature-config-file
                Defaults to <project-name>.yml.
   --docker-smoke-metric
-               Defaults to '$(FEATURE_NAME)_example_value 1'.
+               Defaults to '$(FEATURE_NAMESPACE)_example_value 1'.
   --docker-smoke-run-options
                Extra options passed to `docker run` before the image.
   --docker-smoke-exporter-args
@@ -46,10 +49,11 @@ project_name=""
 go_module=""
 project_desc=""
 feature_name=""
+feature_namespace=""
 metric_namespace=""
 default_port="9888"
 feature_config_file=""
-docker_smoke_metric='$(FEATURE_NAME)_example_value 1'
+docker_smoke_metric='$(FEATURE_NAMESPACE)_example_value 1'
 docker_smoke_run_options='-v "$(CURDIR)/$(FEATURE_CONFIG_PATH):$(FEATURE_CONFIG_CONTAINER_PATH):ro"'
 docker_smoke_exporter_args='--$(FEATURE_NAME).config-file=$(FEATURE_CONFIG_CONTAINER_PATH)'
 docker_smoke_extra_metrics=""
@@ -71,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --feature-name)
       feature_name="${2:-}"
+      shift 2
+      ;;
+    --feature-namespace)
+      feature_namespace="${2:-}"
       shift 2
       ;;
     --namespace)
@@ -129,11 +137,16 @@ if [[ -z "$feature_name" ]]; then
   stem="${stem%-exporter}"
   feature_name="${stem//-/_}"
 fi
+feature_namespace="${feature_namespace:-$feature_name}"
 metric_namespace="${metric_namespace:-${feature_name}_exporter}"
 feature_config_file="${feature_config_file:-${project_name}.yml}"
 
 if [[ ! "$feature_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
   echo "--feature-name must be a valid Go/Prometheus identifier fragment: $feature_name" >&2
+  exit 1
+fi
+if [[ ! "$feature_namespace" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+  echo "--feature-namespace must be a valid Prometheus metric namespace: $feature_namespace" >&2
   exit 1
 fi
 if [[ ! "$metric_namespace" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
@@ -165,6 +178,7 @@ export PROJECT_NAME="$project_name"
 export GO_MODULE="$go_module"
 export PROJECT_DESC="$project_desc"
 export FEATURE_NAME="$feature_name"
+export FEATURE_NAMESPACE="$feature_namespace"
 export METRIC_NAMESPACE="$metric_namespace"
 export DEFAULT_PORT="$default_port"
 export FEATURE_CONFIG_FILE="$feature_config_file"
@@ -185,6 +199,7 @@ project_name_sed="$(sed_replacement "$PROJECT_NAME")"
 go_module_sed="$(sed_replacement "$GO_MODULE")"
 project_desc_sed="$(sed_replacement "$PROJECT_DESC")"
 feature_name_sed="$(sed_replacement "$FEATURE_NAME")"
+feature_namespace_sed="$(sed_replacement "$FEATURE_NAMESPACE")"
 metric_namespace_sed="$(sed_replacement "$METRIC_NAMESPACE")"
 default_port_sed="$(sed_replacement "$DEFAULT_PORT")"
 feature_config_file_sed="$(sed_replacement "$FEATURE_CONFIG_FILE")"
@@ -199,6 +214,7 @@ find "$target_dir" -type f -print0 | while IFS= read -r -d '' file; do
     -e "s|__GO_MODULE__|$go_module_sed|g" \
     -e "s|__PROJECT_DESC__|$project_desc_sed|g" \
     -e "s|__FEATURE_NAME__|$feature_name_sed|g" \
+    -e "s|__FEATURE_NAMESPACE__|$feature_namespace_sed|g" \
     -e "s|__METRIC_NAMESPACE__|$metric_namespace_sed|g" \
     -e "s|__DEFAULT_PORT__|$default_port_sed|g" \
     -e "s|__FEATURE_CONFIG_FILE__|$feature_config_file_sed|g" \

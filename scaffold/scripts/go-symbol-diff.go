@@ -8,6 +8,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -20,23 +21,34 @@ type symbol struct {
 }
 
 func main() {
-	leftLabel := flag.String("left-label", "left", "label for the left file")
-	rightLabel := flag.String("right-label", "right", "label for the right file")
-	flag.Parse()
-	if flag.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: go-symbol-diff [--left-label label] [--right-label label] LEFT.go RIGHT.go")
-		os.Exit(2)
+	os.Exit(runSymbolDiff(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func runSymbolDiff(args []string, stdout io.Writer, stderr io.Writer) int {
+	flags := flag.NewFlagSet("go-symbol-diff", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	leftLabel := flags.String("left-label", "left", "label for the left file")
+	rightLabel := flags.String("right-label", "right", "label for the right file")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 2 {
+		fmt.Fprintln(stderr, "usage: go-symbol-diff [--left-label label] [--right-label label] LEFT.go RIGHT.go")
+		return 2
 	}
 
-	left, err := symbols(flag.Arg(0))
+	leftPath := flags.Arg(0)
+	rightPath := flags.Arg(1)
+
+	left, err := symbols(leftPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "parse %s: %v\n", flag.Arg(0), err)
-		os.Exit(2)
+		fmt.Fprintf(stderr, "parse %s: %v\n", leftPath, err)
+		return 2
 	}
-	right, err := symbols(flag.Arg(1))
+	right, err := symbols(rightPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "parse %s: %v\n", flag.Arg(1), err)
-		os.Exit(2)
+		fmt.Fprintf(stderr, "parse %s: %v\n", rightPath, err)
+		return 2
 	}
 
 	keys := make(map[string]struct{}, len(left)+len(right))
@@ -57,18 +69,19 @@ func main() {
 		rightSymbol, rightOK := right[key]
 		switch {
 		case !leftOK:
-			fmt.Printf("SYMBOL MISSING target %s\n", key)
-			fmt.Printf("+++ %s %s\n%s\n", *rightLabel, key, indent(rightSymbol.text))
+			fmt.Fprintf(stdout, "SYMBOL MISSING target %s\n", key)
+			fmt.Fprintf(stdout, "+++ %s %s\n%s\n", *rightLabel, key, indent(rightSymbol.text))
 		case !rightOK:
-			fmt.Printf("SYMBOL EXTRA target %s\n", key)
-			fmt.Printf("--- %s %s\n%s\n", *leftLabel, key, indent(leftSymbol.text))
+			fmt.Fprintf(stdout, "SYMBOL EXTRA target %s\n", key)
+			fmt.Fprintf(stdout, "--- %s %s\n%s\n", *leftLabel, key, indent(leftSymbol.text))
 		case leftSymbol.text == rightSymbol.text:
-			fmt.Printf("SYMBOL OK %s\n", key)
+			fmt.Fprintf(stdout, "SYMBOL OK %s\n", key)
 		default:
-			fmt.Printf("SYMBOL DIFF %s\n", key)
-			printLineDiff(*leftLabel+" "+key, leftSymbol.text, *rightLabel+" "+key, rightSymbol.text)
+			fmt.Fprintf(stdout, "SYMBOL DIFF %s\n", key)
+			printLineDiff(stdout, *leftLabel+" "+key, leftSymbol.text, *rightLabel+" "+key, rightSymbol.text)
 		}
 	}
+	return 0
 }
 
 func symbols(path string) (map[string]symbol, error) {
@@ -149,7 +162,7 @@ func indent(value string) string {
 	return strings.Join(lines, "\n")
 }
 
-func printLineDiff(leftLabel string, left string, rightLabel string, right string) {
+func printLineDiff(writer io.Writer, leftLabel string, left string, rightLabel string, right string) {
 	leftLines := strings.Split(strings.TrimRight(left, "\n"), "\n")
 	rightLines := strings.Split(strings.TrimRight(right, "\n"), "\n")
 	maximum := len(leftLines)
@@ -157,8 +170,8 @@ func printLineDiff(leftLabel string, left string, rightLabel string, right strin
 		maximum = len(rightLines)
 	}
 
-	fmt.Printf("--- %s\n", leftLabel)
-	fmt.Printf("+++ %s\n", rightLabel)
+	fmt.Fprintf(writer, "--- %s\n", leftLabel)
+	fmt.Fprintf(writer, "+++ %s\n", rightLabel)
 	for i := 0; i < maximum; i++ {
 		var leftLine, rightLine string
 		leftOK := i < len(leftLines)
@@ -170,14 +183,14 @@ func printLineDiff(leftLabel string, left string, rightLabel string, right strin
 			rightLine = rightLines[i]
 		}
 		if leftOK && rightOK && leftLine == rightLine {
-			fmt.Printf("  %s\n", leftLine)
+			fmt.Fprintf(writer, "  %s\n", leftLine)
 			continue
 		}
 		if leftOK {
-			fmt.Printf("- %s\n", leftLine)
+			fmt.Fprintf(writer, "- %s\n", leftLine)
 		}
 		if rightOK {
-			fmt.Printf("+ %s\n", rightLine)
+			fmt.Fprintf(writer, "+ %s\n", rightLine)
 		}
 	}
 }

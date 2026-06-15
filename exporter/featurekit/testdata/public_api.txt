@@ -4,6 +4,8 @@ const MetricScopeNamespace
 const MetricScopeUnset
 func DefaultFeatureConfigFile
 func FeatureMetricName
+func FileScrapeMetricIDsFor
+func FileScrapeMetricSpecs
 func LoadFeatureConfigFile
 func LoadFeatureMetricDescriptors
 func NewContractFeature
@@ -32,6 +34,8 @@ type FeatureMetricsCollectFunc
 type FeatureMetricsContext
 type FeatureMetricsLogFunc
 type FeatureSpec
+type FileScrapeMetricDescs
+type FileScrapeMetricIDs
 type FlagContext
 type MetricScope
 type NewCollectorFunc

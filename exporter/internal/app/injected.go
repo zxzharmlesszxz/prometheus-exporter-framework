@@ -22,6 +22,7 @@ type ExporterInfo struct {
 
 type MetricInfo struct {
 	BuildInfo                                string
+	CollectionDurationSeconds                string
 	LastCollectionSuccess                    string
 	LastCollectionTimestampSeconds           string
 	LastSuccessfulCollectionTimestampSeconds string
@@ -66,6 +67,7 @@ func ExporterInfoFromProjectMetadata(metadata ProjectMetadata, features ...Featu
 func StandardMetricInfo(namespace string) MetricInfo {
 	return MetricInfo{
 		BuildInfo:                                namespace + "_build_info",
+		CollectionDurationSeconds:                namespace + "_collection_duration_seconds",
 		LastCollectionSuccess:                    namespace + "_last_collection_success",
 		LastCollectionTimestampSeconds:           namespace + "_last_collection_timestamp_seconds",
 		LastSuccessfulCollectionTimestampSeconds: namespace + "_last_successful_collection_timestamp_seconds",

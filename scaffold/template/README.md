@@ -37,11 +37,18 @@ Data refresh runs through the framework snapshot collector in a background worke
 Example output:
 
 ```code
-__FEATURE_NAME___example_value 1
+__FEATURE_NAMESPACE___example_value 1
 __METRIC_NAMESPACE___last_collection_success 1
 __METRIC_NAMESPACE___last_collection_timestamp_seconds 1742812800
 __METRIC_NAMESPACE___last_successful_collection_timestamp_seconds 1742812800
 ```
+
+Domain metrics use the `FEATURE_NAMESPACE` prefix, while framework-owned
+exporter health metrics use `METRIC_NAMESPACE`.
+For file-backed sources, use the source-health pattern documented in
+`METRICS.md`; the framework provides `featurekit.FileScrapeMetricSpecs` and
+`exporter.FileScrapeMetrics` so every exporter exposes the same `up`, `valid`,
+`mtime`, scrape duration, read error, and parse error shape.
 
 The full metric contract lives in [`METRICS.md`](METRICS.md).
 

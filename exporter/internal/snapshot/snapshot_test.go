@@ -39,10 +39,28 @@ func (s *fakeSnapshotter) set(snapshot testSnapshot) {
 	s.snapshot.Store(snapshot)
 }
 
+type sequenceClock struct {
+	values []time.Time
+	index  atomic.Int64
+}
+
+func newSequenceClock(values ...time.Time) *sequenceClock {
+	return &sequenceClock{values: values}
+}
+
+func (c *sequenceClock) Now() time.Time {
+	index := int(c.index.Add(1)) - 1
+	if index >= len(c.values) {
+		return c.values[len(c.values)-1]
+	}
+	return c.values[index]
+}
+
 func TestSnapshotCollectorExportsSnapshotAndCollectionMetrics(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1700000000, 0)
+	clock := newSequenceClock(now, now, now.Add(250*time.Millisecond))
 	valueDesc := prometheus.NewDesc("snapshot_example_value", "Snapshot example value", nil, nil)
 	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
 		Namespace:       "demo_exporter",
@@ -55,7 +73,7 @@ func TestSnapshotCollectorExportsSnapshotAndCollectionMetrics(t *testing.T) {
 		CollectFunc: func(ch chan<- prometheus.Metric, snapshot testSnapshot, _ time.Time) {
 			ch <- prometheus.MustNewConstMetric(valueDesc, prometheus.GaugeValue, snapshot.Value)
 		},
-		Now: func() time.Time { return now },
+		Now: clock.Now,
 	})
 
 	families := exportertest.RegisterAndGather(t, collector)
@@ -63,6 +81,13 @@ func TestSnapshotCollectorExportsSnapshotAndCollectionMetrics(t *testing.T) {
 	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 1)
 	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, float64(now.Unix()))
 	exportertest.AssertMetricValue(t, families, "demo_exporter_last_successful_collection_timestamp_seconds", nil, float64(now.Unix()))
+	histogram := exportertest.Histogram(t, families, "demo_exporter_collection_duration_seconds", nil)
+	if got := histogram.GetSampleCount(); got != 1 {
+		t.Fatalf("collection duration count = %d, want 1", got)
+	}
+	if got := histogram.GetSampleSum(); got != 0.25 {
+		t.Fatalf("collection duration sum = %v, want 0.25", got)
+	}
 }
 
 func TestSnapshotCollectorCachesSnapshotUntilRefreshInterval(t *testing.T) {
@@ -183,6 +208,10 @@ func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
 	exportertest.AssertMetricValue(t, families, "exporter_last_collection_success", nil, 0)
 	exportertest.AssertMetricValue(t, families, "exporter_last_collection_timestamp_seconds", nil, 0)
 	exportertest.AssertMetricValue(t, families, "exporter_last_successful_collection_timestamp_seconds", nil, 0)
+	histogram := exportertest.Histogram(t, families, "exporter_collection_duration_seconds", nil)
+	if got := histogram.GetSampleCount(); got != 1 {
+		t.Fatalf("collection duration count = %d, want 1", got)
+	}
 	if logged.Load() != 1 {
 		t.Fatalf("error logs = %d, want 1", logged.Load())
 	}
@@ -196,12 +225,14 @@ func TestSnapshotCollectorUsesCustomHelpText(t *testing.T) {
 		LastCollectionSuccessHelp:    "Custom last collection success help.",
 		LastCollectionTimestampHelp:  "Custom last collection timestamp help.",
 		LastSuccessfulCollectionHelp: "Custom last successful collection help.",
+		CollectionDurationHelp:       "Custom collection duration help.",
 	})
 
 	families := exportertest.RegisterAndGather(t, collector)
 	assertMetricHelp(t, families, "demo_exporter_last_collection_success", "Custom last collection success help.")
 	assertMetricHelp(t, families, "demo_exporter_last_collection_timestamp_seconds", "Custom last collection timestamp help.")
 	assertMetricHelp(t, families, "demo_exporter_last_successful_collection_timestamp_seconds", "Custom last successful collection help.")
+	assertMetricHelp(t, families, "demo_exporter_collection_duration_seconds", "Custom collection duration help.")
 }
 
 func TestSnapshotCollectorStartIsIdempotent(t *testing.T) {

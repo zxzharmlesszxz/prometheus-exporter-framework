@@ -14,28 +14,14 @@ make check
 
 `make check` runs formatting checks, `go vet`, `staticcheck`, coverage threshold
 checks, binary smoke tests, and race tests.
-CI also checks the external `prometheus-exporter-scaffold` repository by
-rendering a demo exporter against the current framework checkout.
+CI also runs scaffold compatibility by rendering a demo exporter from the local
+`scaffold/` template against the current framework checkout.
 
-Concrete exporter scaffolding lives in the separate
-`prometheus-exporter-scaffold` repository. The release workflow verifies the
-scaffold against the current framework checkout before publishing a new module
-tag, creates the GitHub Release, and then opens an issue in the scaffold
-repository asking it to consume the published framework version. The framework
-repository must not push scaffold dependency updates directly because the
-scaffold is a downstream consumer of this module.
+Concrete exporter scaffolding lives in `scaffold/` in this repository. The
+release workflow verifies both the framework and the local scaffold template
+before publishing a new module tag and creating the GitHub Release.
 If a module tag exists without a GitHub Release, rerun the workflow with the same
-version to verify the tagged commit, create the GitHub Release, and retry the
-scaffold notification issue.
-
-When Docker is available, validate the runtime image separately:
-
-```bash
-make docker-smoke
-```
-
-Docker smoke is intentionally optional because not every development or CI
-environment has a Docker daemon.
+version to verify the tagged commit and create the GitHub Release.
 
 ## Version Tags
 
@@ -47,13 +33,13 @@ image as an end-user release artifact.
 Before tagging:
 
 1. Run `make check`.
-2. Optionally run `make docker-smoke`.
+2. Run `make scaffold-compatibility`.
 3. Review the public API list in `ARCHITECTURE.md` if exported symbols changed.
 4. Tag with semver when downstream projects need a stable module version.
 
 ## Version Metadata
 
-The Dockerfile and CI build validation pass linker values to
+The smoke test and concrete exporter build validation pass linker values to
 `github.com/prometheus/common/version`:
 
 - `Version`

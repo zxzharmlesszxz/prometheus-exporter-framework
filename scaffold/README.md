@@ -26,6 +26,7 @@ make new-exporter \
   GO_MODULE=github.com/example/prometheus-demo-exporter \
   PROJECT_DESC="Prometheus Demo Exporter" \
   FEATURE_NAME=demo \
+  FEATURE_NAMESPACE=demo \
   METRIC_NAMESPACE=demo_exporter \
   DEFAULT_PORT=9888 \
   TARGET_DIR=/tmp/prometheus-demo-exporter
@@ -40,9 +41,18 @@ make go-check
 make check
 ```
 
-`FEATURE_NAME`, `METRIC_NAMESPACE`, `PROJECT_DESC`, `GO_MODULE`, and
-`DEFAULT_PORT` have defaults, but passing them explicitly keeps the generated
-repository predictable.
+`FEATURE_NAME`, `FEATURE_NAMESPACE`, `METRIC_NAMESPACE`, `PROJECT_DESC`,
+`GO_MODULE`, and `DEFAULT_PORT` have defaults, but passing them explicitly keeps
+the generated repository predictable.
+
+Metric namespaces are intentionally split:
+
+- `FEATURE_NAME` names the Go feature package and runtime flags such as
+  `--demo.config-file`.
+- `FEATURE_NAMESPACE` prefixes domain metrics owned by the concrete exporter,
+  for example `demo_example_value`.
+- `METRIC_NAMESPACE` prefixes framework-owned exporter health metrics, for
+  example `demo_exporter_last_collection_success`.
 
 `TARGET_DIR` defaults to `rendered/$(PROJECT_NAME)` for local experiments.
 Run `make check` in this scaffold repository to render a demo exporter, check
@@ -55,13 +65,14 @@ package owns domain behavior.
 
 ## Framework Version
 
-`template/go.mod` track the
+`template/go.mod` tracks the
 `prometheus-exporter-framework` version used by newly generated exporters.
 
-When a new framework tag is published, the framework release workflow opens an
-issue here requesting a scaffold update. The scaffold repository then consumes
-the published framework tag through its own normal change flow and verifies a
-rendered exporter.
+Before publishing a new framework tag, update `template/go.mod` to the tag that
+will be released. Compatibility checks render a demo exporter, add a temporary
+`replace` directive to this local framework checkout, and run the generated
+exporter's Go-only checks. This lets scaffold code target the next framework tag
+before that tag exists in the module proxy.
 
 This repository's own CI also renders a demo exporter and runs its Go-only
 checks, so scaffold pull requests validate the generated code path directly.

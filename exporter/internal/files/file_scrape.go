@@ -34,7 +34,10 @@ type FileScraper struct {
 
 type FileScrapeMetrics struct {
 	Path                    string
+	LabelValues             []string
 	MTimeDesc               *prometheus.Desc
+	UpDesc                  *prometheus.Desc
+	ValidDesc               *prometheus.Desc
 	ReadErrorsTotalDesc     *prometheus.Desc
 	ParseErrorsTotalDesc    *prometheus.Desc
 	ScrapeDurationDesc      *prometheus.Desc
@@ -47,6 +50,12 @@ type FileScrapeMetrics struct {
 func (m FileScrapeMetrics) Describe(ch chan<- *prometheus.Desc) {
 	if m.MTimeDesc != nil {
 		ch <- m.MTimeDesc
+	}
+	if m.UpDesc != nil {
+		ch <- m.UpDesc
+	}
+	if m.ValidDesc != nil {
+		ch <- m.ValidDesc
 	}
 	if m.ReadErrorsTotalDesc != nil {
 		ch <- m.ReadErrorsTotalDesc
@@ -62,19 +71,43 @@ func (m FileScrapeMetrics) Describe(ch chan<- *prometheus.Desc) {
 func (m FileScrapeMetrics) Begin(ch chan<- prometheus.Metric) func() {
 	start := m.now()
 	if m.MTimeDesc != nil {
-		ch <- prometheus.MustNewConstMetric(m.MTimeDesc, prometheus.GaugeValue, m.fileModificationSeconds(m.Path))
+		ch <- prometheus.MustNewConstMetric(m.MTimeDesc, prometheus.GaugeValue, m.fileModificationSeconds(m.Path), m.LabelValues...)
 	}
 
 	return func() {
 		if m.ScrapeDurationDesc != nil {
-			ch <- prometheus.MustNewConstMetric(m.ScrapeDurationDesc, prometheus.GaugeValue, m.since(start).Seconds())
+			ch <- prometheus.MustNewConstMetric(m.ScrapeDurationDesc, prometheus.GaugeValue, m.since(start).Seconds(), m.LabelValues...)
 		}
 		if m.ReadErrorsTotalDesc != nil && m.ReadErrorsTotal != nil {
-			ch <- prometheus.MustNewConstMetric(m.ReadErrorsTotalDesc, prometheus.CounterValue, float64(m.ReadErrorsTotal.Load()))
+			ch <- prometheus.MustNewConstMetric(m.ReadErrorsTotalDesc, prometheus.CounterValue, float64(m.ReadErrorsTotal.Load()), m.LabelValues...)
 		}
 		if m.ParseErrorsTotalDesc != nil && m.ParseErrorsTotal != nil {
-			ch <- prometheus.MustNewConstMetric(m.ParseErrorsTotalDesc, prometheus.CounterValue, float64(m.ParseErrorsTotal.Load()))
+			ch <- prometheus.MustNewConstMetric(m.ParseErrorsTotalDesc, prometheus.CounterValue, float64(m.ParseErrorsTotal.Load()), m.LabelValues...)
 		}
+	}
+}
+
+func (m FileScrapeMetrics) CollectResult(ch chan<- prometheus.Metric, result FileScrapeResult) {
+	if m.MTimeDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.MTimeDesc, prometheus.GaugeValue, result.MTimeSeconds, m.LabelValues...)
+	}
+	if m.UpDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.UpDesc, prometheus.GaugeValue, boolFloat(result.Up), m.LabelValues...)
+	}
+	if m.ScrapeDurationDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.ScrapeDurationDesc, prometheus.GaugeValue, result.ScrapeDurationSeconds, m.LabelValues...)
+	}
+	if m.ReadErrorsTotalDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.ReadErrorsTotalDesc, prometheus.CounterValue, float64(result.ReadErrorsTotal), m.LabelValues...)
+	}
+	if m.ParseErrorsTotalDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.ParseErrorsTotalDesc, prometheus.CounterValue, float64(result.ParseErrorsTotal), m.LabelValues...)
+	}
+}
+
+func (m FileScrapeMetrics) CollectValid(ch chan<- prometheus.Metric, valid bool) {
+	if m.ValidDesc != nil {
+		ch <- prometheus.MustNewConstMetric(m.ValidDesc, prometheus.GaugeValue, boolFloat(valid), m.LabelValues...)
 	}
 }
 
@@ -179,4 +212,11 @@ func loadCounter(counter Uint64Counter) uint64 {
 		return 0
 	}
 	return counter.Load()
+}
+
+func boolFloat(value bool) float64 {
+	if value {
+		return 1
+	}
+	return 0
 }

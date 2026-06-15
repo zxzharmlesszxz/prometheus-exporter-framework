@@ -41,7 +41,7 @@ func TestFileScrapeMetricsDescribeAndCollect(t *testing.T) {
 				return 123
 			},
 		},
-		collect: func(metrics FileScrapeMetrics) {
+		collect: func(metrics FileScrapeMetrics, _ chan<- prometheus.Metric) {
 			now = now.Add(250 * time.Millisecond)
 			metrics.AddReadError()
 			metrics.AddParseError()
@@ -67,7 +67,7 @@ func TestFileScrapeMetricsAllowsOptionalCounters(t *testing.T) {
 				return 456
 			},
 		},
-		collect: func(metrics FileScrapeMetrics) {
+		collect: func(metrics FileScrapeMetrics, _ chan<- prometheus.Metric) {
 			metrics.AddReadError()
 			metrics.AddParseError()
 		},
@@ -75,6 +75,48 @@ func TestFileScrapeMetricsAllowsOptionalCounters(t *testing.T) {
 
 	families := exportertest.RegisterAndGather(t, collector)
 	exportertest.AssertMetricValue(t, families, "optional_file_mtime_seconds", nil, 456)
+}
+
+func TestFileScrapeMetricsCollectResultWithLabels(t *testing.T) {
+	t.Parallel()
+
+	mtimeDesc := prometheus.NewDesc("labeled_file_mtime_seconds", "File mtime.", []string{"path"}, nil)
+	upDesc := prometheus.NewDesc("labeled_file_up", "File up.", []string{"path"}, nil)
+	validDesc := prometheus.NewDesc("labeled_file_valid", "File valid.", []string{"path"}, nil)
+	readErrorsDesc := prometheus.NewDesc("labeled_file_read_errors_total", "File read errors.", []string{"path"}, nil)
+	parseErrorsDesc := prometheus.NewDesc("labeled_file_parse_errors_total", "File parse errors.", []string{"path"}, nil)
+	durationDesc := prometheus.NewDesc("labeled_file_scrape_duration_seconds", "File scrape duration.", []string{"path"}, nil)
+	collector := fileScrapeTestCollector{
+		skipBegin: true,
+		metrics: FileScrapeMetrics{
+			LabelValues:          []string{"/tmp/input"},
+			MTimeDesc:            mtimeDesc,
+			UpDesc:               upDesc,
+			ValidDesc:            validDesc,
+			ReadErrorsTotalDesc:  readErrorsDesc,
+			ParseErrorsTotalDesc: parseErrorsDesc,
+			ScrapeDurationDesc:   durationDesc,
+		},
+		collect: func(metrics FileScrapeMetrics, ch chan<- prometheus.Metric) {
+			metrics.CollectResult(ch, FileScrapeResult{
+				Up:                    true,
+				MTimeSeconds:          123,
+				ReadErrorsTotal:       2,
+				ParseErrorsTotal:      3,
+				ScrapeDurationSeconds: 0.25,
+			})
+			metrics.CollectValid(ch, false)
+		},
+	}
+
+	families := exportertest.RegisterAndGather(t, collector)
+	labels := map[string]string{"path": "/tmp/input"}
+	exportertest.AssertMetricValue(t, families, "labeled_file_mtime_seconds", labels, 123)
+	exportertest.AssertMetricValue(t, families, "labeled_file_up", labels, 1)
+	exportertest.AssertMetricValue(t, families, "labeled_file_valid", labels, 0)
+	exportertest.AssertMetricValue(t, families, "labeled_file_read_errors_total", labels, 2)
+	exportertest.AssertMetricValue(t, families, "labeled_file_parse_errors_total", labels, 3)
+	exportertest.AssertMetricValue(t, families, "labeled_file_scrape_duration_seconds", labels, 0.25)
 }
 
 func TestFileScrapeMetricsUsesDefaultHooks(t *testing.T) {
@@ -237,8 +279,9 @@ func TestFileScraperScrapeUsesDefaultHooks(t *testing.T) {
 }
 
 type fileScrapeTestCollector struct {
-	metrics FileScrapeMetrics
-	collect func(FileScrapeMetrics)
+	metrics   FileScrapeMetrics
+	collect   func(FileScrapeMetrics, chan<- prometheus.Metric)
+	skipBegin bool
 }
 
 func (c fileScrapeTestCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -246,9 +289,11 @@ func (c fileScrapeTestCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c fileScrapeTestCollector) Collect(ch chan<- prometheus.Metric) {
-	finish := c.metrics.Begin(ch)
-	defer finish()
+	if !c.skipBegin {
+		finish := c.metrics.Begin(ch)
+		defer finish()
+	}
 	if c.collect != nil {
-		c.collect(c.metrics)
+		c.collect(c.metrics, ch)
 	}
 }

@@ -33,7 +33,9 @@
 // The exporter/exportertest/featuretest subpackage provides the matching
 // reusable test suite for scaffolded feature packages.
 // FileScrapeMetrics is available for file-backed scrape-time collectors that
-// share mtime, scrape duration, and read or parse error counters.
+// share mtime, up, valid, scrape duration, and read or parse error metrics.
+// Use exporter/featurekit.FileScrapeMetricSpecs to keep source-health metric
+// names and descriptors consistent across scaffolded exporters.
 //
 // For programmatic embedding, Run and NewServer construct the same registry and
 // HTTP stack without using process arguments. NewServerChecked and

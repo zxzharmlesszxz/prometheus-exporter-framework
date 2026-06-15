@@ -190,6 +190,7 @@ func NewSnapshotCollector[S any](options SnapshotCollectorOptions[S]) *framework
 		LastCollectionSuccessHelp:    "Whether the last " + options.FeatureName + " data collection succeeded",
 		LastCollectionTimestampHelp:  "Unix timestamp of the last " + options.FeatureName + " data collection attempt",
 		LastSuccessfulCollectionHelp: "Unix timestamp of the last successful " + options.FeatureName + " data collection",
+		CollectionDurationHelp:       "Time spent refreshing " + options.FeatureName + " data collection",
 	})
 }
 

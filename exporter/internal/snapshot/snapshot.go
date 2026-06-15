@@ -35,6 +35,7 @@ type SnapshotCollectorOptions[T any] struct {
 	LastCollectionSuccessHelp    string
 	LastCollectionTimestampHelp  string
 	LastSuccessfulCollectionHelp string
+	CollectionDurationHelp       string
 }
 
 type SnapshotCollector[T any] struct {
@@ -56,10 +57,12 @@ type SnapshotCollector[T any] struct {
 	snapshot                 T
 	snapshotStatus           SnapshotStatus
 	lastSuccessfulCollection time.Time
+	collectionDuration       collectionDurationHistogram
 
 	lastCollectionSuccessDesc    *prometheus.Desc
 	lastCollectionTimestampDesc  *prometheus.Desc
 	lastSuccessfulCollectionDesc *prometheus.Desc
+	collectionDurationDesc       *prometheus.Desc
 }
 
 func NewSnapshotCollector[T any](options SnapshotCollectorOptions[T]) *SnapshotCollector[T] {
@@ -117,6 +120,13 @@ func NewSnapshotCollector[T any](options SnapshotCollectorOptions[T]) *SnapshotC
 			nil,
 			nil,
 		),
+		collectionDurationDesc: prometheus.NewDesc(
+			namespace+"_collection_duration_seconds",
+			defaultString(options.CollectionDurationHelp, "Time spent refreshing collection data"),
+			nil,
+			nil,
+		),
+		collectionDuration: newCollectionDurationHistogram(),
 	}
 	collector.cond = sync.NewCond(&collector.mu)
 	return collector
@@ -129,6 +139,7 @@ func (c *SnapshotCollector[T]) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.lastCollectionSuccessDesc
 	ch <- c.lastCollectionTimestampDesc
 	ch <- c.lastSuccessfulCollectionDesc
+	ch <- c.collectionDurationDesc
 }
 
 func (c *SnapshotCollector[T]) Start(ctx context.Context) {
@@ -166,6 +177,12 @@ func (c *SnapshotCollector[T]) Collect(ch chan<- prometheus.Metric) {
 		prometheus.GaugeValue,
 		metric.UnixTimestamp(state.lastSuccessfulCollection),
 	)
+	ch <- prometheus.MustNewConstHistogram(
+		c.collectionDurationDesc,
+		state.collectionDuration.count,
+		state.collectionDuration.sum,
+		state.collectionDuration.buckets,
+	)
 }
 
 func (c *SnapshotCollector[T]) refreshLoop(ctx context.Context) {
@@ -188,9 +205,9 @@ func (c *SnapshotCollector[T]) refresh(ctx context.Context, now time.Time) {
 		return
 	}
 
-	snapshot := c.snapshotter.Snapshot(ctx, now)
+	snapshot, duration := c.collectSnapshot(ctx, now)
 	c.logSnapshotErrors(snapshot)
-	c.finishRefresh(snapshot)
+	c.finishRefresh(snapshot, duration)
 }
 
 func (c *SnapshotCollector[T]) currentSnapshot(now time.Time) snapshotState[T] {
@@ -211,11 +228,11 @@ func (c *SnapshotCollector[T]) currentSnapshot(now time.Time) snapshotState[T] {
 		c.refreshing = true
 		c.mu.Unlock()
 
-		snapshot := c.snapshotter.Snapshot(context.Background(), now)
+		snapshot, duration := c.collectSnapshot(context.Background(), now)
 		c.logSnapshotErrors(snapshot)
 
 		c.mu.Lock()
-		c.storeSnapshotLocked(snapshot)
+		c.storeSnapshotLocked(snapshot, duration)
 		c.refreshing = false
 		c.cond.Broadcast()
 		state := c.snapshotStateLocked()
@@ -235,16 +252,16 @@ func (c *SnapshotCollector[T]) beginRefresh() bool {
 	return true
 }
 
-func (c *SnapshotCollector[T]) finishRefresh(snapshot T) {
+func (c *SnapshotCollector[T]) finishRefresh(snapshot T, duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.storeSnapshotLocked(snapshot)
+	c.storeSnapshotLocked(snapshot, duration)
 	c.refreshing = false
 	c.cond.Broadcast()
 }
 
-func (c *SnapshotCollector[T]) storeSnapshotLocked(snapshot T) {
+func (c *SnapshotCollector[T]) storeSnapshotLocked(snapshot T, duration time.Duration) {
 	status := c.statusFunc(snapshot)
 	if status.Success {
 		c.lastSuccessfulCollection = status.AttemptTime
@@ -252,6 +269,7 @@ func (c *SnapshotCollector[T]) storeSnapshotLocked(snapshot T) {
 
 	c.snapshot = snapshot
 	c.snapshotStatus = status
+	c.collectionDuration.observe(duration)
 	c.initialized = true
 }
 
@@ -260,7 +278,18 @@ func (c *SnapshotCollector[T]) snapshotStateLocked() snapshotState[T] {
 		snapshot:                 c.snapshot,
 		status:                   c.snapshotStatus,
 		lastSuccessfulCollection: c.lastSuccessfulCollection,
+		collectionDuration:       c.collectionDuration.clone(),
 	}
+}
+
+func (c *SnapshotCollector[T]) collectSnapshot(ctx context.Context, now time.Time) (T, time.Duration) {
+	start := c.now()
+	snapshot := c.snapshotter.Snapshot(ctx, now)
+	duration := c.now().Sub(start)
+	if duration < 0 {
+		duration = 0
+	}
+	return snapshot, duration
 }
 
 func (c *SnapshotCollector[T]) logSnapshotErrors(snapshot T) {
@@ -273,6 +302,42 @@ type snapshotState[T any] struct {
 	snapshot                 T
 	status                   SnapshotStatus
 	lastSuccessfulCollection time.Time
+	collectionDuration       collectionDurationHistogram
+}
+
+type collectionDurationHistogram struct {
+	count   uint64
+	sum     float64
+	buckets map[float64]uint64
+}
+
+func newCollectionDurationHistogram() collectionDurationHistogram {
+	return collectionDurationHistogram{
+		buckets: make(map[float64]uint64, len(prometheus.DefBuckets)),
+	}
+}
+
+func (h *collectionDurationHistogram) observe(duration time.Duration) {
+	seconds := duration.Seconds()
+	h.count++
+	h.sum += seconds
+	for _, upperBound := range prometheus.DefBuckets {
+		if seconds <= upperBound {
+			h.buckets[upperBound]++
+		}
+	}
+}
+
+func (h collectionDurationHistogram) clone() collectionDurationHistogram {
+	clone := collectionDurationHistogram{
+		count:   h.count,
+		sum:     h.sum,
+		buckets: make(map[float64]uint64, len(h.buckets)),
+	}
+	for upperBound, count := range h.buckets {
+		clone.buckets[upperBound] = count
+	}
+	return clone
 }
 
 type zeroSnapshotter[T any] struct{}

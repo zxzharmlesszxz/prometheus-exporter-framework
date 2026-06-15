@@ -11,8 +11,11 @@ type MetricScope int
 
 const (
 	MetricScopeUnset MetricScope = iota
+	// MetricScopeFeature prefixes Name with the framework feature name.
 	MetricScopeFeature
+	// MetricScopeNamespace prefixes Name with the exporter/framework metric namespace.
 	MetricScopeNamespace
+	// MetricScopeAbsolute uses Name as the complete Prometheus metric name.
 	MetricScopeAbsolute
 )
 
