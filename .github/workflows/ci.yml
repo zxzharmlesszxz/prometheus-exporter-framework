@@ -30,7 +30,7 @@ jobs:
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -84,7 +84,7 @@ jobs:
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
