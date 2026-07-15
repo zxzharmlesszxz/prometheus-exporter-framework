@@ -1,0 +1,23 @@
+const Branch
+const BuildDate
+const BuildUser
+const Revision
+const Version
+field Config.BinaryPath string
+field Config.BuildInfoMetric string
+field Config.CommandDir string
+field Config.ForbiddenUsageNames []string
+field Config.HTTPTimeout time.Duration
+field Config.HealthPath string
+field Config.ProjectName string
+field Config.RejectMetrics []string
+field Config.RenamedExecutable string
+field Config.RunEnv string
+field Config.ServerArgs ServerArgsFunc
+field Config.ServerTestName string
+field Config.StartupTimeout time.Duration
+field Config.TelemetryPath string
+field Config.WantMetrics []string
+func RunBinary func(t *testing.T, config Config)
+type Config
+type ServerArgsFunc func(t *testing.T, root string) []string

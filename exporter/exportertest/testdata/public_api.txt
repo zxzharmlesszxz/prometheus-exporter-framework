@@ -1,0 +1,31 @@
+field FeatureContractConfig.DuplicateRegistration bool
+field FeatureContractConfig.FeatureContext any
+field FeatureContractConfig.FlagArgs []string
+field FeatureContractConfig.LastCollectionSuccessMetric string
+field FeatureContractConfig.NewFeature func() FeatureContractFeature
+field FeatureContractConfig.RegisterCollectors bool
+field FeatureContractConfig.WantRuntimeConfig map[string]any
+func AssertMetricExists func(tb TB, families []*dto.MetricFamily, name string, labels map[string]string)
+func AssertMetricLabelPresent func(tb TB, families []*dto.MetricFamily, name string, labels map[string]string, labelName string)
+func AssertMetricValue func(tb TB, families []*dto.MetricFamily, name string, labels map[string]string, want float64)
+func AssertRuntimeConfigValues func(t *testing.T, config []any, want map[string]any)
+func Gather func(tb TB, gatherer prometheus.Gatherer) []*dto.MetricFamily
+func Histogram func(tb TB, families []*dto.MetricFamily, name string, labels map[string]string) *dto.Histogram
+func LabelsMatch func(metric *dto.Metric, want map[string]string) bool
+func Metric func(families []*dto.MetricFamily, name string, labels map[string]string) *dto.Metric
+func MetricFamily func(tb TB, families []*dto.MetricFamily, name string) *dto.MetricFamily
+func MetricValue func(families []*dto.MetricFamily, name string, labels map[string]string) (float64, bool)
+func ParseFeatureFlags func(t *testing.T, feature interface { RegisterFlags(app *kingpin.Application) }, args []string)
+func Register func(tb TB, registry *prometheus.Registry, collector prometheus.Collector)
+func RegisterAndGather func(tb TB, collector prometheus.Collector) []*dto.MetricFamily
+func RunFeatureContract func(t *testing.T, config FeatureContractConfig)
+func RuntimeConfigValue func(tb TB, config []any, key string) any
+func WaitForMetricValue func(tb TB, gatherer prometheus.Gatherer, name string, labels map[string]string, want float64)
+func WaitForMetricValueWithin func(tb TB, gatherer prometheus.Gatherer, name string, labels map[string]string, want float64, timeout time.Duration)
+interface FeatureContractFeature.RegisterFlags func(app *kingpin.Application)
+interface FeatureContractFeature.RuntimeConfig func() []any
+interface TB.Fatalf func(format string, args ...any)
+interface TB.Helper func()
+type FeatureContractConfig
+type FeatureContractFeature
+type TB

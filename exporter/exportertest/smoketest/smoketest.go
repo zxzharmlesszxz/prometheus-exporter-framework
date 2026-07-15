@@ -3,6 +3,7 @@ package smoketest
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -136,12 +138,40 @@ func (c *Config) setDefaults(t *testing.T) {
 	if c.ServerTestName == "" {
 		c.ServerTestName = "serves health and metrics"
 	}
+	if err := validateSmokePath("TelemetryPath", c.TelemetryPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSmokePath("HealthPath", c.HealthPath); err != nil {
+		t.Fatal(err)
+	}
 	if c.StartupTimeout == 0 {
 		c.StartupTimeout = 10 * time.Second
 	}
 	if c.HTTPTimeout == 0 {
 		c.HTTPTimeout = 500 * time.Millisecond
 	}
+}
+
+func validateSmokePath(name string, value string) error {
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("smoketest.Config.%s = %q, want path without leading or trailing whitespace", name, value)
+	}
+	if !strings.HasPrefix(value, "/") {
+		return fmt.Errorf("smoketest.Config.%s = %q, want absolute path starting with /", name, value)
+	}
+	if value == "/" {
+		return fmt.Errorf("smoketest.Config.%s = %q, want non-root path", name, value)
+	}
+	if strings.ContainsAny(value, " \t\r\n") {
+		return fmt.Errorf("smoketest.Config.%s = %q, want path without whitespace", name, value)
+	}
+	if strings.ContainsAny(value, "?#") {
+		return fmt.Errorf("smoketest.Config.%s = %q, want path without query string or fragment", name, value)
+	}
+	if strings.Contains(value, "//") {
+		return fmt.Errorf("smoketest.Config.%s = %q, want path without double slashes", name, value)
+	}
+	return nil
 }
 
 func (c Config) metricWants() []string {
@@ -175,8 +205,8 @@ func runServerSmoke(t *testing.T, root string, binary string, config Config, wan
 		args = append(args, config.ServerArgs(t, root)...)
 	}
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	var stdout safeBuffer
+	var stderr safeBuffer
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -326,8 +356,8 @@ func waitForHealth(
 	baseURL string,
 	config Config,
 	waitCh <-chan error,
-	stdout *bytes.Buffer,
-	stderr *bytes.Buffer,
+	stdout *safeBuffer,
+	stderr *safeBuffer,
 ) {
 	t.Helper()
 
@@ -355,8 +385,8 @@ func waitForMetrics(
 	baseURL string,
 	config Config,
 	waitCh <-chan error,
-	stdout *bytes.Buffer,
-	stderr *bytes.Buffer,
+	stdout *safeBuffer,
+	stderr *safeBuffer,
 	wants []string,
 ) string {
 	t.Helper()
@@ -377,7 +407,7 @@ func waitForMetrics(
 	return ""
 }
 
-func failIfExited(t *testing.T, waitCh <-chan error, stage string, stdout *bytes.Buffer, stderr *bytes.Buffer) {
+func failIfExited(t *testing.T, waitCh <-chan error, stage string, stdout *safeBuffer, stderr *safeBuffer) {
 	t.Helper()
 
 	select {
@@ -425,4 +455,21 @@ func goCommand() string {
 		return goEnv
 	}
 	return "go"
+}
+
+type safeBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (b *safeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *safeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
 }

@@ -51,6 +51,9 @@ func RunInjectedAdapterContract(t *testing.T, config InjectedAdapterContractConf
 				t.Fatalf("FeatureName() = %q, want %q", got, metadata.FeatureName)
 			}
 		})
+		if restore == nil {
+			t.Fatal("ReplaceMainFromInjectedProject returned nil restore function")
+		}
 		t.Cleanup(restore)
 
 		config.Main()
@@ -82,7 +85,6 @@ func RunInjectedAdapterContract(t *testing.T, config InjectedAdapterContractConf
 			t.Fatalf("Metrics = %#v, want %#v", info.Metrics, metrics)
 		}
 		assertHasString(t, info.Smoke.ForbiddenUsageNames, metadata.MetricNamespace, "Smoke.ForbiddenUsageNames")
-		assertHasString(t, info.Smoke.ServerArgs, "--"+metadata.FeatureName+".refresh-interval=100ms", "Smoke.ServerArgs")
 		assertHasString(t, info.Smoke.WantMetrics, metrics.LastCollectionSuccess+" 1", "Smoke.WantMetrics")
 		assertHasString(t, info.Smoke.RejectMetrics, metrics.LastCollectionSuccess+" 0", "Smoke.RejectMetrics")
 

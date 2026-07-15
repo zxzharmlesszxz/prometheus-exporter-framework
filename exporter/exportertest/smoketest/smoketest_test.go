@@ -1,7 +1,6 @@
 package smoketest
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -47,6 +46,65 @@ func TestConfigDefaultsAndMetricWants(t *testing.T) {
 		if !strings.Contains(wants, want) {
 			t.Fatalf("metricWants() missing %q in %q", want, wants)
 		}
+	}
+}
+
+func TestConfigRejectsInvalidTelemetryPath(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"metrics",
+		" /metrics",
+		"/",
+		"/met rics",
+		"/metrics?format=openmetrics",
+		"/metrics#section",
+		"/prometheus//metrics",
+	} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			if err := validateSmokePath("TelemetryPath", path); err == nil || !strings.Contains(err.Error(), "TelemetryPath") {
+				t.Fatalf("validateSmokePath() error = %v, want TelemetryPath error", err)
+			}
+		})
+	}
+}
+
+func TestConfigRejectsInvalidHealthPath(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"healthz",
+		" /healthz",
+		"/",
+		"/health z",
+		"/healthz?ready=true",
+		"/healthz#ready",
+		"/healthz//ready",
+	} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			if err := validateSmokePath("HealthPath", path); err == nil || !strings.Contains(err.Error(), "HealthPath") {
+				t.Fatalf("validateSmokePath() error = %v, want HealthPath error", err)
+			}
+		})
+	}
+}
+
+func TestSafeBufferSerializesWritesAndReads(t *testing.T) {
+	t.Parallel()
+
+	var buffer safeBuffer
+	if n, err := buffer.Write([]byte("hello")); err != nil || n != len("hello") {
+		t.Fatalf("Write() = %d, %v; want %d, nil", n, err, len("hello"))
+	}
+	if n, err := buffer.Write([]byte(" world")); err != nil || n != len(" world") {
+		t.Fatalf("Write() = %d, %v; want %d, nil", n, err, len(" world"))
+	}
+	if got := buffer.String(); got != "hello world" {
+		t.Fatalf("String() = %q, want hello world", got)
 	}
 }
 
@@ -181,7 +239,9 @@ func TestWaitForMetricsWaitsUntilAllWantedTextAppears(t *testing.T) {
 		BuildInfoMetric: "demo_build_info",
 	}
 	waitCh := make(chan error)
-	metrics := waitForMetrics(t, server.Client(), server.URL, config, waitCh, &bytes.Buffer{}, &bytes.Buffer{}, []string{
+	var stdout safeBuffer
+	var stderr safeBuffer
+	metrics := waitForMetrics(t, server.Client(), server.URL, config, waitCh, &stdout, &stderr, []string{
 		"demo_value 1",
 		"demo_other 2",
 	})

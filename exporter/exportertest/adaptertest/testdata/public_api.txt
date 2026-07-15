@@ -1,0 +1,8 @@
+field InjectedAdapterContractConfig.ExporterInfo func() framework.ExporterInfo
+field InjectedAdapterContractConfig.Main func()
+field InjectedAdapterContractConfig.Metadata framework.ProjectMetadata
+field InjectedAdapterContractConfig.NewFeature func() framework.Feature
+field InjectedAdapterContractConfig.ReplaceMainFromInjectedProject func(MainFromInjectedProjectFunc) func()
+func RunInjectedAdapterContract func(t *testing.T, config InjectedAdapterContractConfig)
+type InjectedAdapterContractConfig
+type MainFromInjectedProjectFunc = func(features ...framework.Feature)

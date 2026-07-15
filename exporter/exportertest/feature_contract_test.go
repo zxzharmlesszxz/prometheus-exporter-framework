@@ -61,3 +61,48 @@ func TestRunFeatureContractSkipsOptionalChecks(t *testing.T) {
 		},
 	})
 }
+
+func TestRunFeatureContractRejectsNilFeatureFactoryResult(t *testing.T) {
+	t.Parallel()
+
+	expectFatal(t, func(tb TB) {
+		_ = newFeatureContractFeature(tb, func() FeatureContractFeature {
+			return nil
+		})
+	}, "FeatureContractConfig.NewFeature returned nil")
+	expectFatal(t, func(tb TB) {
+		_ = newFeatureContractFeature(tb, func() FeatureContractFeature {
+			var feature *contractFeature
+			return feature
+		})
+	}, "FeatureContractConfig.NewFeature returned nil")
+}
+
+func TestRegisterCollectorsReportsContractShapeErrors(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	expectFatal(t, func(tb TB) {
+		_ = registerCollectors(tb, missingRegisterCollectorsFeature{}, contractContext{}, registry)
+	}, "does not define RegisterCollectors")
+	expectFatal(t, func(tb TB) {
+		_ = registerCollectors(tb, badContextRegisterCollectorsFeature{}, contractContext{}, registry)
+	}, "context argument")
+	expectFatal(t, func(tb TB) {
+		_ = registerCollectors(tb, badReturnRegisterCollectorsFeature{}, contractContext{}, registry)
+	}, "must return error")
+}
+
+type missingRegisterCollectorsFeature struct{}
+
+type badContextRegisterCollectorsFeature struct{}
+
+func (badContextRegisterCollectorsFeature) RegisterCollectors(string, *prometheus.Registry) error {
+	return nil
+}
+
+type badReturnRegisterCollectorsFeature struct{}
+
+func (badReturnRegisterCollectorsFeature) RegisterCollectors(contractContext, *prometheus.Registry) string {
+	return ""
+}

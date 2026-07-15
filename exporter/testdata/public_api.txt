@@ -1,62 +1,193 @@
+alias-field CollectorFeature.CollectorsFunc func(ctx FeatureContext) ([]prometheus.Collector, error)
+alias-field CollectorFeature.DefaultListenAddressValue string
+alias-field CollectorFeature.Name string
+alias-field CollectorFeature.RegisterCollectorsFunc func(ctx FeatureContext, registry *prometheus.Registry) error
+alias-field CollectorFeature.RegisterFlagsFunc func(app *kingpin.Application)
+alias-field CollectorFeature.RuntimeConfigFunc func() []any
+alias-field Config.DefaultListenAddress string
+alias-field Config.DefaultMetricsPath string
+alias-field Config.Description string
+alias-field Config.Features []Feature
+alias-field Config.Name string
+alias-field Config.Namespace string
+alias-field ExporterInfo.DefaultListenAddress string
+alias-field ExporterInfo.Description string
+alias-field ExporterInfo.FeatureName string
+alias-field ExporterInfo.MetricNamespace string
+alias-field ExporterInfo.Metrics MetricInfo
+alias-field ExporterInfo.Name string
+alias-field ExporterInfo.Smoke SmokeInfo
+alias-field FeatureContext.Context context.Context
+alias-field FeatureContext.ExporterName string
+alias-field FeatureContext.Logger *slog.Logger
+alias-field FeatureContext.Namespace string
+alias-field FileScrapeMetrics.FileModificationSeconds func(string) float64
+alias-field FileScrapeMetrics.LabelValues []string
+alias-field FileScrapeMetrics.MTimeDesc *prometheus.Desc
+alias-field FileScrapeMetrics.Now func() time.Time
+alias-field FileScrapeMetrics.ParseErrorsTotal Uint64Counter
+alias-field FileScrapeMetrics.ParseErrorsTotalDesc *prometheus.Desc
+alias-field FileScrapeMetrics.Path string
+alias-field FileScrapeMetrics.ReadErrorsTotal Uint64Counter
+alias-field FileScrapeMetrics.ReadErrorsTotalDesc *prometheus.Desc
+alias-field FileScrapeMetrics.ScrapeDurationDesc *prometheus.Desc
+alias-field FileScrapeMetrics.UpDesc *prometheus.Desc
+alias-field FileScrapeMetrics.ValidDesc *prometheus.Desc
+alias-field FileScrapeResult.Err error
+alias-field FileScrapeResult.MTimeSeconds float64
+alias-field FileScrapeResult.ParseErrorsTotal uint64
+alias-field FileScrapeResult.Path string
+alias-field FileScrapeResult.ReadErrorsTotal uint64
+alias-field FileScrapeResult.ScrapeDurationSeconds float64
+alias-field FileScrapeResult.Up bool
+alias-field FileScraper.FileModificationSeconds func(string) float64
+alias-field FileScraper.Now func() time.Time
+alias-field FileScraper.ParseErrorsTotal Uint64Counter
+alias-field FileScraper.ReadErrorsTotal Uint64Counter
+alias-field FileScraper.ReadFile FileReadFunc
+alias-field HandlerOptions.Description string
+alias-field HandlerOptions.EnablePprof bool
+alias-field HandlerOptions.MetricsPath string
+alias-field HandlerOptions.Name string
+alias-field HandlerOptions.Registry *prometheus.Registry
+alias-field MetricInfo.BuildInfo string
+alias-field MetricInfo.CollectionDurationSeconds string
+alias-field MetricInfo.LastCollectionSuccess string
+alias-field MetricInfo.LastCollectionTimestampSeconds string
+alias-field MetricInfo.LastSuccessfulCollectionTimestampSeconds string
+alias-field Options.Description string
+alias-field Options.EnablePprof bool
+alias-field Options.Features []Feature
+alias-field Options.MetricsPath string
+alias-field Options.Name string
+alias-field Options.Namespace string
+alias-field Options.ToolkitFlags *web.FlagConfig
+alias-field ProjectMetadata.DefaultListenAddress string
+alias-field ProjectMetadata.ExporterDescription string
+alias-field ProjectMetadata.ExporterName string
+alias-field ProjectMetadata.FeatureName string
+alias-field ProjectMetadata.MetricNamespace string
+alias-field SmokeInfo.ForbiddenUsageNames []string
+alias-field SmokeInfo.RejectMetrics []string
+alias-field SmokeInfo.RenamedExecutable string
+alias-field SmokeInfo.ServerArgs []string
+alias-field SmokeInfo.WantMetrics []string
+alias-field SmokeSpec.RejectMetrics []string
+alias-field SmokeSpec.ServerArgs []string
+alias-field SmokeSpec.WantMetrics []string
+alias-field SnapshotCollectorOptions.CollectFunc func(chan<- prometheus.Metric, T, time.Time)
+alias-field SnapshotCollectorOptions.CollectionDurationHelp string
+alias-field SnapshotCollectorOptions.DescribeFunc func(chan<- *prometheus.Desc)
+alias-field SnapshotCollectorOptions.ErrorLogFunc func(*slog.Logger, T)
+alias-field SnapshotCollectorOptions.LastCollectionSuccessHelp string
+alias-field SnapshotCollectorOptions.LastCollectionTimestampHelp string
+alias-field SnapshotCollectorOptions.LastSuccessfulCollectionHelp string
+alias-field SnapshotCollectorOptions.Logger *slog.Logger
+alias-field SnapshotCollectorOptions.Namespace string
+alias-field SnapshotCollectorOptions.Now func() time.Time
+alias-field SnapshotCollectorOptions.RefreshInterval time.Duration
+alias-field SnapshotCollectorOptions.Snapshotter Snapshotter[T]
+alias-field SnapshotCollectorOptions.StatusFunc func(T) SnapshotStatus
+alias-field SnapshotCollectorOptions.SyncRefreshTimeout time.Duration
+alias-field SnapshotStatus.AttemptTime time.Time
+alias-field SnapshotStatus.Success bool
+alias-interface DefaultListenAddressProvider.DefaultListenAddress func() string
+alias-interface Feature.RegisterCollectors func(ctx FeatureContext, registry *prometheus.Registry) error
+alias-interface Feature.RegisterFlags func(app *kingpin.Application)
+alias-interface NamedFeature.FeatureName func() string
+alias-interface RuntimeConfigReporter.RuntimeConfig func() []any
+alias-interface SmokeSpecProvider.SmokeSpec func() SmokeSpec
+alias-interface Snapshotter.Snapshot func(context.Context, time.Time) T
+alias-interface StartableCollector.Collector prometheus.Collector
+alias-interface StartableCollector.Start func(context.Context)
+alias-interface Uint64Counter.Add func(uint64) uint64
+alias-interface Uint64Counter.Load func() uint64
+alias-method (*SnapshotCollector[T]) Collect func(ch chan<- prometheus.Metric)
+alias-method (*SnapshotCollector[T]) Describe func(ch chan<- *prometheus.Desc)
+alias-method (*SnapshotCollector[T]) Start func(ctx context.Context)
+alias-method (CollectorFeature) DefaultListenAddress func() string
+alias-method (CollectorFeature) FeatureName func() string
+alias-method (CollectorFeature) RegisterCollectors func(ctx FeatureContext, registry *prometheus.Registry) error
+alias-method (CollectorFeature) RegisterFlags func(app *kingpin.Application)
+alias-method (CollectorFeature) RuntimeConfig func() []any
+alias-method (FileScrapeMetrics) AddParseError func()
+alias-method (FileScrapeMetrics) AddReadError func()
+alias-method (FileScrapeMetrics) Begin func(ch chan<- prometheus.Metric) func()
+alias-method (FileScrapeMetrics) CollectResult func(ch chan<- prometheus.Metric, result FileScrapeResult)
+alias-method (FileScrapeMetrics) CollectValid func(ch chan<- prometheus.Metric, valid bool)
+alias-method (FileScrapeMetrics) Describe func(ch chan<- *prometheus.Desc)
+alias-method (FileScraper) Scrape func(path string, parse func([]byte) error) (result FileScrapeResult)
+alias-method (ProjectMetadata) Validate func() error
 const DefaultSnapshotRefreshInterval
-func BoolFloat
-func ConfigForProject
-func ConfigFromInjectedProject
-func ConfigFromProject
-func DescriptionFromProject
-func ExporterInfoFromInjectedProject
-func ExporterInfoFromProjectMetadata
-func ExporterNameFromProject
-func FileMTimeSeconds
-func HydrateVersionMetadata
-func InjectedDefaultListenAddress
-func InjectedExporterDescription
-func InjectedExporterName
-func InjectedFeatureName
-func InjectedMetricNamespace
-func InjectedProjectMetadata
-func Main
-func MainForProject
-func MainFromInjectedProject
-func MainFromProject
-func MustRun
-func NewHandler
-func NewHandlerChecked
-func NewRegistry
-func NewServer
-func NewServerChecked
-func NewSnapshotCollector
-func NormalizeDuration
-func RegisterAndStartCollectors
-func RegisterCollectors
-func ResolveVersionMetadata
-func Run
-func RunCLI
-func RunCLIFromProject
-func StandardMetricInfo
-func UnixTimestamp
-type CollectorFeature
-type Config
-type DefaultListenAddressProvider
-type ExporterInfo
-type Feature
-type FeatureContext
-type FileReadFunc
-type FileScrapeMetrics
-type FileScrapeResult
-type FileScraper
-type HandlerOptions
-type MetricInfo
-type NamedFeature
-type Options
-type ProjectMetadata
-type RuntimeConfigReporter
-type SmokeInfo
-type SmokeSpec
-type SmokeSpecProvider
-type SnapshotCollector
-type SnapshotCollectorOptions
-type SnapshotStatus
-type Snapshotter
-type StartableCollector
-type Uint64Counter
+func BoolFloat func(value bool) float64
+func ConfigForProject func(projectName string, features ...Feature) Config
+func ConfigFromInjectedProject func(features ...Feature) Config
+func ConfigFromInjectedProjectErr func(features ...Feature) (Config, error)
+func ConfigFromProject func(features ...Feature) Config
+func DescriptionFromProject func(projectName string) string
+func ExporterInfoFromInjectedProject func(features ...Feature) ExporterInfo
+func ExporterInfoFromInjectedProjectErr func(features ...Feature) (ExporterInfo, error)
+func ExporterInfoFromProjectMetadata func(metadata ProjectMetadata, features ...Feature) ExporterInfo
+func ExporterInfoFromProjectMetadataErr func(metadata ProjectMetadata, features ...Feature) (ExporterInfo, error)
+func ExporterNameFromProject func(projectName string) string
+func FileMTimeSeconds func(path string) float64
+func HydrateVersionMetadata func()
+func InjectedDefaultListenAddress func() string
+func InjectedExporterDescription func() string
+func InjectedExporterName func() string
+func InjectedFeatureName func() string
+func InjectedMetricNamespace func() string
+func InjectedProjectMetadata func() ProjectMetadata
+func InjectedProjectMetadataErr func() (ProjectMetadata, error)
+func Main func(cfg Config)
+func MainErr func(cfg Config) error
+func MainForProject func(projectName, description string, features ...Feature)
+func MainForProjectErr func(projectName, description string, features ...Feature) error
+func MainFromInjectedProject func(features ...Feature)
+func MainFromInjectedProjectErr func(features ...Feature) error
+func MainFromProject func(features ...Feature)
+func MainFromProjectErr func(features ...Feature) error
+func MustRun func(opts Options, logger *slog.Logger)
+func NewHandler func(opts HandlerOptions) http.Handler
+func NewHandlerChecked func(opts HandlerOptions) (http.Handler, error)
+func NewRegistry func(namespace string, logger *slog.Logger, features ...Feature) (*prometheus.Registry, error)
+func NewRegistryContext func(ctx context.Context, namespace string, logger *slog.Logger, features ...Feature) (*prometheus.Registry, error)
+func NewServer func(opts Options, registry *prometheus.Registry) *http.Server
+func NewServerChecked func(opts Options, registry *prometheus.Registry) (*http.Server, error)
+func NewSnapshotCollector func[T any](options SnapshotCollectorOptions[T]) *SnapshotCollector[T]
+func NormalizeDuration func(value time.Duration, fallback time.Duration) time.Duration
+func RegisterAndStartCollectors func(ctx context.Context, registry *prometheus.Registry, collectors ...StartableCollector) error
+func RegisterCollectors func(registry *prometheus.Registry, collectors ...prometheus.Collector) error
+func ResolveVersionMetadata func(currentVersion string, currentBranch string, currentRevision string, computedRevision string, buildMainVersion string, buildBranch string, buildRevision string) (string, string, string)
+func Run func(opts Options, logger *slog.Logger) error
+func RunCLI func(cfg Config, args []string) error
+func RunCLIContext func(ctx context.Context, cfg Config, args []string) error
+func RunCLIFromProject func(args []string, features ...Feature) error
+func RunContext func(ctx context.Context, opts Options, logger *slog.Logger) error
+func StandardMetricInfo func(namespace string) MetricInfo
+func UnixTimestamp func(value time.Time) float64
+type CollectorFeature = feature.CollectorFeature
+type Config = app.Config
+type DefaultListenAddressProvider = feature.DefaultListenAddressProvider
+type ExporterInfo = app.ExporterInfo
+type Feature = feature.Feature
+type FeatureContext = feature.FeatureContext
+type FileReadFunc = files.FileReadFunc
+type FileScrapeMetrics = files.FileScrapeMetrics
+type FileScrapeResult = files.FileScrapeResult
+type FileScraper = files.FileScraper
+type HandlerOptions = app.HandlerOptions
+type MetricInfo = app.MetricInfo
+type NamedFeature = feature.NamedFeature
+type Options = app.Options
+type ProjectMetadata = app.ProjectMetadata
+type RuntimeConfigReporter = feature.RuntimeConfigReporter
+type SmokeInfo = app.SmokeInfo
+type SmokeSpec = feature.SmokeSpec
+type SmokeSpecProvider = feature.SmokeSpecProvider
+type SnapshotCollectorOptions[T any] = snapshotpkg.SnapshotCollectorOptions[T]
+type SnapshotCollector[T any] = snapshotpkg.SnapshotCollector[T]
+type SnapshotStatus = snapshotpkg.SnapshotStatus
+type Snapshotter[T any] = snapshotpkg.Snapshotter[T]
+type StartableCollector = feature.StartableCollector
+type Uint64Counter = files.Uint64Counter

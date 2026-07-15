@@ -43,15 +43,21 @@ exporter-public-api-check: ## Check exporter public API surface.
 featurekit-public-api-check: ## Check featurekit public API surface.
 	$(GO) test ./exporter/featurekit
 
+exportertest-public-api-check: ## Check exportertest public API surface.
+	$(GO) test ./exporter/exportertest/...
+
 exporter-public-api-update: ## Update exporter public API golden file.
 	$(GO) test ./exporter -update-public-api
 
 featurekit-public-api-update: ## Update featurekit public API golden file.
 	$(GO) test ./exporter/featurekit -update-public-api
 
-public-api-update: exporter-public-api-update featurekit-public-api-update ## Update public API golden files.
+exportertest-public-api-update: ## Update exportertest public API golden file.
+	$(GO) test ./exporter/exportertest/... -update-public-api
 
-public-api-check: exporter-public-api-check featurekit-public-api-check ## Check public API golden files.
+public-api-update: exporter-public-api-update featurekit-public-api-update exportertest-public-api-update ## Update public API golden files.
+
+public-api-check: exporter-public-api-check featurekit-public-api-check exportertest-public-api-check ## Check public API golden files.
 
 coverage: ## Run tests with coverage and write coverage reports.
 	$(GO) test ./... -covermode=atomic -coverprofile=$(COVERAGE_PROFILE)

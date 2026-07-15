@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -28,15 +29,28 @@ func TestRegisterGatherAndMetricAssertions(t *testing.T) {
 	}
 
 	labels := map[string]string{"state": "ready"}
+	AssertMetricExists(t, families, "demo_value", labels)
+	AssertMetricLabelPresent(t, families, "demo_value", labels, "state")
 	AssertMetricValue(t, families, "demo_value", labels, 7)
 	WaitForMetricValue(t, registry, "demo_value", labels, 7)
+	WaitForMetricValueWithin(t, registry, "demo_value", labels, 7, 50*time.Millisecond)
+	WaitForMetricValueWithin(t, registry, "demo_value", labels, 7, 0)
 
 	got, ok := MetricValue(families, "demo_value", labels)
 	if !ok || got != 7 {
 		t.Fatalf("MetricValue() = %v, %v; want 7, true", got, ok)
 	}
+	if metric := Metric(families, "demo_value", labels); metric == nil {
+		t.Fatal("Metric() = nil, want matching metric")
+	}
+	if metric := Metric(families, "demo_value", map[string]string{"state": "missing"}); metric != nil {
+		t.Fatalf("Metric() = %v, want nil for missing labels", metric)
+	}
 	if LabelsMatch(family.GetMetric()[0], map[string]string{"state": "missing"}) {
 		t.Fatal("LabelsMatch() = true, want false")
+	}
+	if LabelsMatch(nil, labels) {
+		t.Fatal("LabelsMatch(nil) = true, want false")
 	}
 }
 
@@ -88,6 +102,9 @@ func TestMetricValueSupportsCounterAndUntyped(t *testing.T) {
 	}
 	if _, ok := MetricValue(families, "missing_value", nil); ok {
 		t.Fatal("missing MetricValue() ok = true, want false")
+	}
+	if metric := Metric(families, "missing_value", nil); metric != nil {
+		t.Fatalf("missing Metric() = %v, want nil", metric)
 	}
 }
 
@@ -153,6 +170,15 @@ func TestFailures(t *testing.T) {
 		AssertMetricValue(tb, families, "missing_value", nil, 1)
 	}, "not found")
 	expectFatal(t, func(tb TB) {
+		AssertMetricExists(tb, families, "missing_value", nil)
+	}, "not found")
+	expectFatal(t, func(tb TB) {
+		AssertMetricLabelPresent(tb, families, "missing_value", nil, "state")
+	}, "not found")
+	expectFatal(t, func(tb TB) {
+		AssertMetricLabelPresent(tb, families, "demo_value", nil, "state")
+	}, `missing label "state"`)
+	expectFatal(t, func(tb TB) {
 		AssertMetricValue(tb, families, "demo_value", nil, 2)
 	}, "want 2")
 	expectFatal(t, func(tb TB) {
@@ -164,6 +190,17 @@ func TestFailures(t *testing.T) {
 	expectFatal(t, func(tb TB) {
 		Histogram(tb, families, "demo_value", nil)
 	}, "histogram demo_value")
+	expectFatal(t, func(tb TB) {
+		registry := prometheus.NewRegistry()
+		Register(t, registry, constCollector{
+			desc:  prometheus.NewDesc("waiting_value", "Waiting value.", nil, nil),
+			value: 1,
+		})
+		WaitForMetricValueWithin(tb, registry, "waiting_value", nil, 2, time.Nanosecond)
+	}, "last value was 1")
+	expectFatal(t, func(tb TB) {
+		WaitForMetricValueWithin(tb, prometheus.NewRegistry(), "missing_waiting_value", nil, 1, time.Nanosecond)
+	}, "metric was not found")
 }
 
 type constCollector struct {

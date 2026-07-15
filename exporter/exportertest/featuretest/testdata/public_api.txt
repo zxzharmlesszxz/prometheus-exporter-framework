@@ -1,0 +1,48 @@
+field FeatureTestSpec.CheckDefaultSnapshotter bool
+field FeatureTestSpec.CollectorFlagArgs []string
+field FeatureTestSpec.ContractFlagArgs []string
+field FeatureTestSpec.ContractRuntimeConfig map[string]any
+field FeatureTestSpec.DefaultFeatureConfigFileName string
+field FeatureTestSpec.DefaultRefreshInterval time.Duration
+field FeatureTestSpec.DefaultRuntimeConfig map[string]any
+field FeatureTestSpec.DefaultSnapshotter framework.Snapshotter[S]
+field FeatureTestSpec.ExporterName string
+field FeatureTestSpec.FailedSnapshot func(time.Time, error) S
+field FeatureTestSpec.FeatureConfigFile featurekit.FeatureConfigFileFunc[C]
+field FeatureTestSpec.FeatureName string
+field FeatureTestSpec.MetricNamespace string
+field FeatureTestSpec.MetricSpecs []featurekit.FeatureMetricSpec
+field FeatureTestSpec.MetricsFunc featurekit.SnapshotMetricsFunc[S]
+field FeatureTestSpec.NewConfigFileTarget func() any
+field FeatureTestSpec.NewDefaultConfig func() C
+field FeatureTestSpec.NewFeature NewFeatureFunc[C, S]
+field FeatureTestSpec.SkipContractLastCollectionSuccessMetric bool
+field FeatureTestSpec.SkipRegisterCollectorsTest bool
+field FeatureTestSpec.StatusFunc func(S) framework.SnapshotStatus
+field FeatureTestSpec.SuccessfulSnapshot func(time.Time) S
+func HasString func(values []string, want string) bool
+func NewFakeSnapshotter func[S any](snapshot S) *FakeSnapshotter[S]
+func NewFeatureTestSuite func[C any, S any](spec FeatureTestSpec[C, S]) *FeatureTestSuite[C, S]
+method (*FakeSnapshotter[S]) Set func(snapshot S)
+method (*FakeSnapshotter[S]) Snapshot func(context.Context, time.Time) S
+method (*FeatureTestSuite[C, S]) FeatureContext func() framework.FeatureContext
+method (*FeatureTestSuite[C, S]) LastCollectionSuccessMetric func() string
+method (*FeatureTestSuite[C, S]) LastCollectionTimestampMetric func() string
+method (*FeatureTestSuite[C, S]) LastSuccessfulCollectionTimestampMetric func() string
+method (*FeatureTestSuite[C, S]) MetricName func(featureName string, namespace string, id string) string
+method (*FeatureTestSuite[C, S]) NewCollector func(featureName string, namespace string, snapshotter framework.Snapshotter[S], refreshInterval time.Duration) framework.StartableCollector
+method (*FeatureTestSuite[C, S]) NewCollectorWithNow func(featureName string, namespace string, logger *slog.Logger, snapshotter framework.Snapshotter[S], refreshInterval time.Duration, now func() time.Time) framework.StartableCollector
+method (*FeatureTestSuite[C, S]) NewFakeSnapshotter func(snapshot S) *FakeSnapshotter[S]
+method (*FeatureTestSuite[C, S]) NewFeature func(options featurekit.SpecOptions) *featurekit.Feature[C, S]
+method (*FeatureTestSuite[C, S]) NewNamedFeature func() *featurekit.Feature[C, S]
+method (*FeatureTestSuite[C, S]) ParseFeatureFlags func(t *testing.T, feature *featurekit.Feature[C, S], args []string)
+method (*FeatureTestSuite[C, S]) Register func(name string, run FeatureTestFunc)
+method (*FeatureTestSuite[C, S]) RegisterFeatureCollectors func(t *testing.T, feature interface { RegisterCollectors(framework.FeatureContext, *prometheus.Registry) error }) *prometheus.Registry
+method (*FeatureTestSuite[C, S]) RunTests func(t *testing.T)
+method (*FeatureTestSuite[C, S]) StartCollector func(t *testing.T, collector framework.StartableCollector) *prometheus.Registry
+method (*FeatureTestSuite[C, S]) WriteConfig func(t *testing.T, content string) string
+type FakeSnapshotter[S any]
+type FeatureTestFunc func(t *testing.T)
+type FeatureTestSpec[C any, S any]
+type FeatureTestSuite[C any, S any]
+type NewFeatureFunc[C any, S any] func(featurekit.SpecOptions) *featurekit.Feature[C, S]

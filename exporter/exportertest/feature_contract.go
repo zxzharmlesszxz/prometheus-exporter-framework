@@ -31,7 +31,7 @@ func RunFeatureContract(t *testing.T, config FeatureContractConfig) {
 
 	if len(config.FlagArgs) > 0 || len(config.WantRuntimeConfig) > 0 {
 		t.Run("registers flags and reports runtime config", func(t *testing.T) {
-			feature := config.NewFeature()
+			feature := newFeatureContractFeature(t, config.NewFeature)
 			ParseFeatureFlags(t, feature, config.FlagArgs)
 			AssertRuntimeConfigValues(t, feature.RuntimeConfig(), config.WantRuntimeConfig)
 		})
@@ -39,7 +39,7 @@ func RunFeatureContract(t *testing.T, config FeatureContractConfig) {
 
 	if config.RegisterCollectors || config.LastCollectionSuccessMetric != "" {
 		t.Run("registers collectors", func(t *testing.T) {
-			feature := config.NewFeature()
+			feature := newFeatureContractFeature(t, config.NewFeature)
 			ParseFeatureFlags(t, feature, config.FlagArgs)
 			registry := prometheus.NewRegistry()
 			if err := registerCollectors(t, feature, config.FeatureContext, registry); err != nil {
@@ -53,7 +53,7 @@ func RunFeatureContract(t *testing.T, config FeatureContractConfig) {
 
 	if config.DuplicateRegistration {
 		t.Run("reports duplicate collector registration", func(t *testing.T) {
-			feature := config.NewFeature()
+			feature := newFeatureContractFeature(t, config.NewFeature)
 			registry := prometheus.NewRegistry()
 			if err := registerCollectors(t, feature, config.FeatureContext, registry); err != nil {
 				t.Fatalf("RegisterCollectors() error = %v", err)
@@ -63,6 +63,16 @@ func RunFeatureContract(t *testing.T, config FeatureContractConfig) {
 			}
 		})
 	}
+}
+
+func newFeatureContractFeature(tb TB, newFeature func() FeatureContractFeature) FeatureContractFeature {
+	tb.Helper()
+
+	feature := newFeature()
+	if isNil(feature) {
+		tb.Fatalf("FeatureContractConfig.NewFeature returned nil")
+	}
+	return feature
 }
 
 func ParseFeatureFlags(t *testing.T, feature interface {
@@ -78,28 +88,63 @@ func ParseFeatureFlags(t *testing.T, feature interface {
 	}
 }
 
-func registerCollectors(t *testing.T, feature any, ctx any, registry *prometheus.Registry) error {
-	t.Helper()
+var errorType = reflect.TypeOf((*error)(nil)).Elem()
+
+func registerCollectors(tb TB, feature any, ctx any, registry *prometheus.Registry) error {
+	tb.Helper()
 
 	method := reflect.ValueOf(feature).MethodByName("RegisterCollectors")
 	if !method.IsValid() {
-		t.Fatalf("%T does not define RegisterCollectors", feature)
+		tb.Fatalf("%T does not define RegisterCollectors", feature)
 	}
+	methodType := method.Type()
+	if methodType.NumIn() != 2 {
+		tb.Fatalf("%T.RegisterCollectors accepts %d arguments, want 2", feature, methodType.NumIn())
+	}
+	if methodType.NumOut() != 1 || !methodType.Out(0).Implements(errorType) {
+		tb.Fatalf("%T.RegisterCollectors must return error", feature)
+	}
+	ctxValue := reflect.ValueOf(ctx)
+	if !ctxValue.IsValid() || !ctxValue.Type().AssignableTo(methodType.In(0)) {
+		tb.Fatalf("%T.RegisterCollectors context argument is %v, want %v", feature, typeName(ctxValue), methodType.In(0))
+	}
+	registryValue := reflect.ValueOf(registry)
+	if !registryValue.IsValid() || !registryValue.Type().AssignableTo(methodType.In(1)) {
+		tb.Fatalf("%T.RegisterCollectors registry argument is %v, want %v", feature, typeName(registryValue), methodType.In(1))
+	}
+
 	values := method.Call([]reflect.Value{
-		reflect.ValueOf(ctx),
-		reflect.ValueOf(registry),
+		ctxValue,
+		registryValue,
 	})
-	if len(values) != 1 {
-		t.Fatalf("%T.RegisterCollectors returned %d values, want 1", feature, len(values))
-	}
 	if values[0].IsNil() {
 		return nil
 	}
 	err, ok := values[0].Interface().(error)
 	if !ok {
-		t.Fatalf("%T.RegisterCollectors returned %T, want error", feature, values[0].Interface())
+		tb.Fatalf("%T.RegisterCollectors returned %T, want error", feature, values[0].Interface())
 	}
 	return err
+}
+
+func typeName(value reflect.Value) any {
+	if !value.IsValid() {
+		return "<nil>"
+	}
+	return value.Type()
+}
+
+func isNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	reflectValue := reflect.ValueOf(value)
+	switch reflectValue.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return reflectValue.IsNil()
+	default:
+		return false
+	}
 }
 
 func AssertRuntimeConfigValues(t *testing.T, config []any, want map[string]any) {

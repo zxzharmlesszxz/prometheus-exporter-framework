@@ -116,12 +116,30 @@ func TestFeatureTestSuiteRejectsInvalidRegisteredTests(t *testing.T) {
 	assertPanic(t, func() {
 		suite.Register("invalid", nil)
 	})
+	suite.Register("duplicate", func(*testing.T) {})
+	assertPanic(t, func() {
+		suite.Register("duplicate", func(*testing.T) {})
+	})
 }
 
 func TestFeatureTestSuiteRequiresFeatureFactory(t *testing.T) {
 	t.Parallel()
 
 	suite := NewFeatureTestSuite(FeatureTestSpec[testConfig, testSnapshot]{
+		SkipRegisterCollectorsTest: true,
+	})
+	assertPanic(t, func() {
+		suite.NewFeature(featurekit.SpecOptions{})
+	})
+}
+
+func TestFeatureTestSuiteRejectsNilFeatureFactoryResult(t *testing.T) {
+	t.Parallel()
+
+	suite := NewFeatureTestSuite(FeatureTestSpec[testConfig, testSnapshot]{
+		NewFeature: func(featurekit.SpecOptions) *featurekit.Feature[testConfig, testSnapshot] {
+			return nil
+		},
 		SkipRegisterCollectorsTest: true,
 	})
 	assertPanic(t, func() {

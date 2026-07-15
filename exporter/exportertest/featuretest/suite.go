@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -94,6 +95,11 @@ func (s *FeatureTestSuite[C, S]) Register(name string, run FeatureTestFunc) {
 	if run == nil {
 		panic("feature test function is required")
 	}
+	for _, test := range s.tests {
+		if test.name == name {
+			panic("feature test " + name + " is already registered")
+		}
+	}
 	s.tests = append(s.tests, featureTest{name: name, run: run})
 }
 
@@ -104,7 +110,6 @@ func (s *FeatureTestSuite[C, S]) RunTests(t *testing.T) {
 		t.Fatal("feature test suite has no registered tests")
 	}
 	for _, test := range s.tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.run(t)
@@ -117,7 +122,11 @@ func (s *FeatureTestSuite[C, S]) NewFeature(options featurekit.SpecOptions) *fea
 	if s.spec.NewFeature == nil {
 		panic("FeatureTestSpec.NewFeature is required")
 	}
-	return s.spec.NewFeature(options)
+	feature := s.spec.NewFeature(options)
+	if feature == nil {
+		panic("FeatureTestSpec.NewFeature returned nil")
+	}
+	return feature
 }
 
 // NewNamedFeature constructs a feature with the suite feature name.
@@ -329,10 +338,10 @@ func (s *FeatureTestSuite[C, S]) testFeatureConfigFileLoader(t *testing.T) {
 		t.Fatal("FeatureTestSpec.NewConfigFileTarget is required")
 	}
 
-	if got := featurekit.DefaultFeatureConfigFile(" custom "); got != filepath.Join("/etc/prometheus", "prometheus-custom-exporter.yml") {
+	if got := featurekit.DefaultFeatureConfigFile(" custom "); got != path.Join("/etc/prometheus", "prometheus-custom-exporter.yml") {
 		t.Fatalf("DefaultFeatureConfigFile(custom) = %q, want default custom path", got)
 	}
-	if got := featurekit.DefaultFeatureConfigFile(" "); got != filepath.Join("/etc/prometheus", "prometheus-exporter-exporter.yml") {
+	if got := featurekit.DefaultFeatureConfigFile(" "); got != path.Join("/etc/prometheus", "prometheus-exporter-exporter.yml") {
 		t.Fatalf("DefaultFeatureConfigFile(empty) = %q, want default exporter path", got)
 	}
 
@@ -384,7 +393,10 @@ func (s *FeatureTestSuite[C, S]) testMetricNameContract(t *testing.T) {
 }
 
 func (s *FeatureTestSuite[C, S]) testCollectorDefaultsAndFailureMetrics(t *testing.T) {
-	collector := s.NewCollector("", "", s.NewFakeSnapshotter(s.failedSnapshot(t, time.Time{}, errors.New("refresh failed"))), 0)
+	now := time.Unix(1_700_000_000, 0)
+	collector := s.NewCollectorWithNow("", "", nil, s.NewFakeSnapshotter(s.failedSnapshot(t, time.Time{}, errors.New("refresh failed"))), 0, func() time.Time {
+		return now
+	})
 
 	expected := fmt.Sprintf(`
 # HELP %[1]s Whether the last %[4]s data collection succeeded
@@ -392,11 +404,11 @@ func (s *FeatureTestSuite[C, S]) testCollectorDefaultsAndFailureMetrics(t *testi
 %[1]s 0
 # HELP %[2]s Unix timestamp of the last %[4]s data collection attempt
 # TYPE %[2]s gauge
-%[2]s 0
+%[2]s %[5]g
 # HELP %[3]s Unix timestamp of the last successful %[4]s data collection
 # TYPE %[3]s gauge
 %[3]s 0
-`, "exporter_last_collection_success", "exporter_last_collection_timestamp_seconds", "exporter_last_successful_collection_timestamp_seconds", "exporter")
+`, "exporter_last_collection_success", "exporter_last_collection_timestamp_seconds", "exporter_last_successful_collection_timestamp_seconds", "exporter", float64(now.Unix()))
 
 	if err := testutil.CollectAndCompare(collector, strings.NewReader(expected),
 		"exporter_last_collection_success",
