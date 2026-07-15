@@ -16,6 +16,9 @@ type SnapshotMetrics[S any] interface {
 }
 
 type SnapshotErrorLogger[S any] interface {
+	// LogSnapshotError is called after every refresh with the returned snapshot.
+	// Implementations should inspect the snapshot/status payload and log only
+	// failed domain collection attempts.
 	LogSnapshotError(logger *slog.Logger, snapshot S)
 }
 
@@ -50,17 +53,25 @@ type SnapshotMetricsFunc[S any] func(ctx SnapshotMetricsContext[S]) SnapshotMetr
 type SnapshotFeatureSpec[C any, S any] struct {
 	Options                SpecOptions
 	DefaultRefreshInterval time.Duration
-	Config                 C
-	RegisterFlagsFunc      func(app *kingpin.Application, ctx FlagContext, config *C)
-	ValidateConfigFunc     func(config C) error
-	NewSnapshotterFunc     func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
-	DefaultSnapshotter     framework.Snapshotter[S]
-	MetricsFunc            SnapshotMetricsFunc[S]
-	StatusFunc             func(S) framework.SnapshotStatus
-	ErrorLogFunc           func(*slog.Logger, S)
-	RuntimeConfigFunc      func(ctx RuntimeConfigContext[C]) []any
-	Smoke                  SmokeSpec
-	SmokeFunc              func(ctx SmokeContext[C]) SmokeSpec
+	// SyncRefreshTimeout bounds scrape-triggered synchronous refreshes when the
+	// cache is empty or stale and the background refresh loop is not running. A
+	// zero value preserves the core collector's historical unbounded behavior.
+	SyncRefreshTimeout time.Duration
+	Config             C
+	RegisterFlagsFunc  func(app *kingpin.Application, ctx FlagContext, config *C)
+	PrepareConfigFunc  func(featureName string, config C) (C, error)
+	ValidateConfigFunc func(config C) error
+	NewSnapshotterFunc func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+	DefaultSnapshotter framework.Snapshotter[S]
+	MetricsFunc        SnapshotMetricsFunc[S]
+	StatusFunc         func(S) framework.SnapshotStatus
+	// ErrorLogFunc is called after every refresh with the returned snapshot.
+	// The hook should inspect the snapshot/status payload and log only failed
+	// domain collection attempts.
+	ErrorLogFunc      func(*slog.Logger, S)
+	RuntimeConfigFunc func(ctx RuntimeConfigContext[C]) []any
+	Smoke             SmokeSpec
+	SmokeFunc         func(ctx SmokeContext[C]) SmokeSpec
 }
 
 type SnapshotCollectorOptions[S any] struct {
@@ -73,11 +84,18 @@ type SnapshotCollectorOptions[S any] struct {
 	DefaultSnapshotter     framework.Snapshotter[S]
 	RefreshInterval        time.Duration
 	DefaultRefreshInterval time.Duration
-	StatusFunc             func(S) framework.SnapshotStatus
-	DescribeFunc           func(chan<- *prometheus.Desc)
-	CollectFunc            func(chan<- prometheus.Metric, S, time.Time)
-	ErrorLogFunc           func(*slog.Logger, S)
-	Now                    func() time.Time
+	// SyncRefreshTimeout bounds scrape-triggered synchronous refreshes when the
+	// cache is empty or stale and the background refresh loop is not running. A
+	// zero value preserves the core collector's historical unbounded behavior.
+	SyncRefreshTimeout time.Duration
+	StatusFunc         func(S) framework.SnapshotStatus
+	DescribeFunc       func(chan<- *prometheus.Desc)
+	CollectFunc        func(chan<- prometheus.Metric, S, time.Time)
+	// ErrorLogFunc is called after every refresh with the returned snapshot.
+	// The hook should inspect the snapshot/status payload and log only failed
+	// domain collection attempts.
+	ErrorLogFunc func(*slog.Logger, S)
+	Now          func() time.Time
 }
 
 type SnapshotMetricsCollectorOptions[S any] struct {
@@ -104,6 +122,7 @@ func NewSnapshotFeatureSpec[C any, S any](spec SnapshotFeatureSpec[C, S]) Featur
 		FallbackRefreshInterval: fallbackRefreshInterval,
 		Config:                  spec.Config,
 		RegisterFlagsFunc:       spec.RegisterFlagsFunc,
+		PrepareConfigFunc:       spec.PrepareConfigFunc,
 		ValidateConfigFunc:      spec.ValidateConfigFunc,
 		NewSnapshotterFunc:      spec.NewSnapshotterFunc,
 		NewCollectorFunc: func(featureName string, namespace string, logger *slog.Logger, snapshotter framework.Snapshotter[S], refreshInterval time.Duration) framework.StartableCollector {
@@ -116,6 +135,7 @@ func NewSnapshotFeatureSpec[C any, S any](spec SnapshotFeatureSpec[C, S]) Featur
 					DefaultSnapshotter:     spec.DefaultSnapshotter,
 					RefreshInterval:        refreshInterval,
 					DefaultRefreshInterval: defaultRefreshInterval,
+					SyncRefreshTimeout:     spec.SyncRefreshTimeout,
 					StatusFunc:             spec.StatusFunc,
 					ErrorLogFunc:           spec.ErrorLogFunc,
 				},
@@ -177,15 +197,16 @@ func NewSnapshotMetricsCollector[S any](options SnapshotMetricsCollectorOptions[
 func NewSnapshotCollector[S any](options SnapshotCollectorOptions[S]) *framework.SnapshotCollector[S] {
 	options = ResolveSnapshotCollectorOptions(options)
 	return framework.NewSnapshotCollector(framework.SnapshotCollectorOptions[S]{
-		Namespace:       options.Namespace,
-		Logger:          options.Logger,
-		Snapshotter:     options.Snapshotter,
-		RefreshInterval: options.RefreshInterval,
-		StatusFunc:      options.StatusFunc,
-		DescribeFunc:    options.DescribeFunc,
-		CollectFunc:     options.CollectFunc,
-		ErrorLogFunc:    options.ErrorLogFunc,
-		Now:             options.Now,
+		Namespace:          options.Namespace,
+		Logger:             options.Logger,
+		Snapshotter:        options.Snapshotter,
+		RefreshInterval:    options.RefreshInterval,
+		SyncRefreshTimeout: options.SyncRefreshTimeout,
+		StatusFunc:         options.StatusFunc,
+		DescribeFunc:       options.DescribeFunc,
+		CollectFunc:        options.CollectFunc,
+		ErrorLogFunc:       options.ErrorLogFunc,
+		Now:                options.Now,
 
 		LastCollectionSuccessHelp:    "Whether the last " + options.FeatureName + " data collection succeeded",
 		LastCollectionTimestampHelp:  "Unix timestamp of the last " + options.FeatureName + " data collection attempt",

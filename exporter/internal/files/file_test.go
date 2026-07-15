@@ -1,6 +1,7 @@
 package files
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,8 +20,9 @@ func TestFileMTimeSeconds(t *testing.T) {
 		t.Fatalf("set file times: %v", err)
 	}
 
-	if got := FileMTimeSeconds(path); got != float64(modTime.Unix()) {
-		t.Fatalf("FileMTimeSeconds() = %v, want %v", got, modTime.Unix())
+	want := float64(modTime.UnixNano()) / 1e9
+	if got := FileMTimeSeconds(path); math.Abs(got-want) > 0.000001 {
+		t.Fatalf("FileMTimeSeconds() = %v, want %v", got, want)
 	}
 }
 

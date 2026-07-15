@@ -1,6 +1,7 @@
 package featurekit
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -57,14 +58,24 @@ func NewFeatureMetrics[S any](ctx SnapshotMetricsContext[S], specs []FeatureMetr
 }
 
 func LoadFeatureMetricDescriptors(featureName string, namespace string, specs []FeatureMetricSpec) FeatureMetricDescriptors {
+	validateFeatureMetricSpecs(specs)
+	seenNames := make(map[string]string, len(specs))
 	metrics := FeatureMetricDescriptors{
 		order: make([]string, 0, len(specs)),
 		descs: make(map[string]*prometheus.Desc, len(specs)),
 	}
 	for _, spec := range specs {
+		metricName := spec.MetricName(featureName, namespace)
+		if metricName == "" {
+			panic(fmt.Sprintf("metric spec ID %q renders empty metric name", spec.ID))
+		}
+		if previousID, ok := seenNames[metricName]; ok {
+			panic(fmt.Sprintf("duplicate metric name %q for IDs %q and %q", metricName, previousID, spec.ID))
+		}
+		seenNames[metricName] = spec.ID
 		metrics.order = append(metrics.order, spec.ID)
 		metrics.descs[spec.ID] = prometheus.NewDesc(
-			spec.MetricName(featureName, namespace),
+			metricName,
 			spec.Help,
 			spec.Labels,
 			nil,
@@ -80,7 +91,11 @@ func (d FeatureMetricDescriptors) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (d FeatureMetricDescriptors) Get(id string) *prometheus.Desc {
-	return d.descs[id]
+	desc := d.descs[id]
+	if desc == nil {
+		panic("unknown metric descriptor ID: " + id)
+	}
+	return desc
 }
 
 func FeatureMetricName(featureName string, namespace string, id string, specs []FeatureMetricSpec) string {
@@ -102,6 +117,19 @@ func (s FeatureMetricSpec) MetricName(featureName string, namespace string) stri
 		return s.Name
 	default:
 		return s.Name
+	}
+}
+
+func validateFeatureMetricSpecs(specs []FeatureMetricSpec) {
+	seen := make(map[string]struct{}, len(specs))
+	for index, spec := range specs {
+		if spec.ID == "" {
+			panic(fmt.Sprintf("metric spec at index %d has empty ID", index))
+		}
+		if _, ok := seen[spec.ID]; ok {
+			panic("duplicate metric spec ID: " + spec.ID)
+		}
+		seen[spec.ID] = struct{}{}
 	}
 }
 

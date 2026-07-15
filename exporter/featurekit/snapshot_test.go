@@ -72,6 +72,34 @@ func TestNewSnapshotFeatureSpecPrefersSpecDefaultRefreshInterval(t *testing.T) {
 	}
 }
 
+func TestNewSnapshotFeatureSpecPassesSyncRefreshTimeout(t *testing.T) {
+	t.Parallel()
+
+	snapshotter := &deadlineSnapshotter{}
+	spec := NewSnapshotFeatureSpec(SnapshotFeatureSpec[testConfig, testSnapshot]{
+		Options: SpecOptions{
+			FeatureName: "demo",
+		},
+		SyncRefreshTimeout: time.Second,
+		StatusFunc: func(snapshot testSnapshot) framework.SnapshotStatus {
+			return framework.SnapshotStatus{AttemptTime: snapshot.attemptTime, Success: snapshot.success}
+		},
+	})
+
+	collector := spec.NewCollectorFunc(
+		"demo",
+		"demo_exporter",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		snapshotter,
+		time.Minute,
+	)
+	_ = exportertest.RegisterAndGather(t, collector)
+
+	if !snapshotter.deadlineSet.Load() {
+		t.Fatal("Snapshot context had no deadline, want SyncRefreshTimeout passed through")
+	}
+}
+
 func TestResolveSnapshotCollectorOptionsNilLoggerDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +132,7 @@ func TestNewSnapshotCollectorDefaultsToZeroSnapshotter(t *testing.T) {
 	// With zero snapshotter, the collector still produces collection health metrics.
 	families := exportertest.RegisterAndGather(t, collector)
 	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 0)
-	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, 0)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, float64(now.Unix()))
 }
 
 func TestNewSnapshotCollectorWithNilStatusFunc(t *testing.T) {
@@ -486,4 +514,15 @@ func (m testSnapshotMetrics) LogSnapshotError(_ *slog.Logger, _ testSnapshot) {
 	if m.logCalls != nil {
 		m.logCalls.Add(1)
 	}
+}
+
+type deadlineSnapshotter struct {
+	deadlineSet atomic.Bool
+}
+
+func (s *deadlineSnapshotter) Snapshot(ctx context.Context, now time.Time) testSnapshot {
+	if _, ok := ctx.Deadline(); ok {
+		s.deadlineSet.Store(true)
+	}
+	return testSnapshot{attemptTime: now, success: true}
 }

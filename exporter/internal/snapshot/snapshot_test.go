@@ -88,6 +88,14 @@ func TestSnapshotCollectorExportsSnapshotAndCollectionMetrics(t *testing.T) {
 	if got := histogram.GetSampleSum(); got != 0.25 {
 		t.Fatalf("collection duration sum = %v, want 0.25", got)
 	}
+	if got := len(histogram.GetBucket()); got != len(prometheus.DefBuckets) {
+		t.Fatalf("collection duration buckets = %d, want %d", got, len(prometheus.DefBuckets))
+	}
+	for i, bucket := range histogram.GetBucket() {
+		if got := bucket.GetUpperBound(); got != prometheus.DefBuckets[i] {
+			t.Fatalf("collection duration bucket[%d] upper bound = %v, want %v", i, got, prometheus.DefBuckets[i])
+		}
+	}
 }
 
 func TestSnapshotCollectorCachesSnapshotUntilRefreshInterval(t *testing.T) {
@@ -192,6 +200,7 @@ func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
 	t.Parallel()
 
 	logged := atomic.Int32{}
+	now := time.Unix(1_700_000_000, 0)
 	collector := NewSnapshotCollector(SnapshotCollectorOptions[int]{
 		ErrorLogFunc: func(logger *slog.Logger, snapshot int) {
 			if logger == nil {
@@ -202,11 +211,12 @@ func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
 			}
 			logged.Add(1)
 		},
+		Now: func() time.Time { return now },
 	})
 
 	families := exportertest.RegisterAndGather(t, collector)
 	exportertest.AssertMetricValue(t, families, "exporter_last_collection_success", nil, 0)
-	exportertest.AssertMetricValue(t, families, "exporter_last_collection_timestamp_seconds", nil, 0)
+	exportertest.AssertMetricValue(t, families, "exporter_last_collection_timestamp_seconds", nil, float64(now.Unix()))
 	exportertest.AssertMetricValue(t, families, "exporter_last_successful_collection_timestamp_seconds", nil, 0)
 	histogram := exportertest.Histogram(t, families, "exporter_collection_duration_seconds", nil)
 	if got := histogram.GetSampleCount(); got != 1 {
@@ -214,6 +224,81 @@ func TestSnapshotCollectorDefaultsAndErrorLogging(t *testing.T) {
 	}
 	if logged.Load() != 1 {
 		t.Fatalf("error logs = %d, want 1", logged.Load())
+	}
+}
+
+func TestSnapshotCollectorFallsBackToRefreshTimeWhenStatusAttemptTimeIsZero(t *testing.T) {
+	t.Parallel()
+
+	start := time.Unix(1_700_000_000, 0)
+	now := start
+	snapshotter := newFakeSnapshotter(testSnapshot{Success: true, Value: 1})
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Namespace:       "demo_exporter",
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc: func(snapshot testSnapshot) SnapshotStatus {
+			return SnapshotStatus{Success: snapshot.Success}
+		},
+		Now: func() time.Time { return now },
+	})
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_success", nil, 1)
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_collection_timestamp_seconds", nil, float64(start.Unix()))
+	exportertest.AssertMetricValue(t, families, "demo_exporter_last_successful_collection_timestamp_seconds", nil, float64(start.Unix()))
+
+	now = start.Add(30 * time.Minute)
+	_ = exportertest.RegisterAndGather(t, collector)
+	if calls := snapshotter.calls.Load(); calls != 1 {
+		t.Fatalf("snapshot calls = %d, want cached snapshot without second refresh", calls)
+	}
+}
+
+func TestSnapshotCollectorRechecksFreshnessWithCurrentTimeAfterWaiting(t *testing.T) {
+	start := time.Unix(1_700_000_000, 0)
+	clock := newSequenceClock(
+		start.Add(3*time.Hour),
+		start.Add(3*time.Hour),
+	)
+	snapshotter := newFakeSnapshotter(testSnapshot{
+		AttemptTime: start.Add(3 * time.Hour),
+		Success:     true,
+		Value:       3,
+	})
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Namespace:       "demo_exporter",
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             clock.Now,
+	})
+	collector.initialized = true
+	collector.refreshing = true
+	collector.snapshot = testSnapshot{AttemptTime: start, Success: true, Value: 1}
+	collector.snapshotStatus = SnapshotStatus{AttemptTime: start, Success: true}
+	collector.lastSuccessfulCollection = start
+
+	done := make(chan snapshotState[testSnapshot], 1)
+	go func() {
+		done <- collector.currentSnapshot(start.Add(2 * time.Hour))
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	collector.mu.Lock()
+	collector.snapshot = testSnapshot{AttemptTime: start.Add(2 * time.Hour), Success: true, Value: 2}
+	collector.snapshotStatus = SnapshotStatus{AttemptTime: start.Add(2 * time.Hour), Success: true}
+	collector.lastSuccessfulCollection = start.Add(2 * time.Hour)
+	collector.refreshing = false
+	collector.cond.Broadcast()
+	collector.mu.Unlock()
+
+	state := <-done
+	if state.snapshot.Value != 3 {
+		t.Fatalf("snapshot value = %v, want refresh after waited snapshot was already stale", state.snapshot.Value)
+	}
+	if calls := snapshotter.calls.Load(); calls != 1 {
+		t.Fatalf("snapshot calls = %d, want one follow-up refresh", calls)
 	}
 }
 
@@ -246,13 +331,210 @@ func TestSnapshotCollectorStartIsIdempotent(t *testing.T) {
 		Now:             func() time.Time { return now },
 	})
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	defer cancel()
 
 	collector.Start(ctx)
 	collector.Start(ctx)
-	if !collector.backgroundStarted {
+	collector.mu.Lock()
+	started := collector.backgroundStarted
+	collector.mu.Unlock()
+	if !started {
 		t.Fatal("backgroundStarted = false, want true")
 	}
+}
+
+func TestSnapshotCollectorClearsBackgroundStartedWhenContextIsCanceled(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Snapshotter:     newFakeSnapshotter(testSnapshot{AttemptTime: now, Success: true, Value: 1}),
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	collector.Start(ctx)
+	cancel()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		collector.mu.Lock()
+		started := collector.backgroundStarted
+		collector.mu.Unlock()
+		if !started {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("backgroundStarted stayed true after context cancellation")
+}
+
+func TestSnapshotCollectorCanRestartAfterContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := newFakeSnapshotter(testSnapshot{AttemptTime: now, Success: true, Value: 1})
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+
+	firstCtx, firstCancel := context.WithCancel(context.Background())
+	collector.Start(firstCtx)
+	waitForSnapshotCalls(t, snapshotter, 1)
+	firstCancel()
+	waitForBackgroundStopped(t, collector)
+
+	secondCtx, secondCancel := context.WithCancel(context.Background())
+	defer secondCancel()
+	collector.Start(secondCtx)
+	waitForSnapshotCalls(t, snapshotter, 2)
+}
+
+func TestSnapshotCollectorDoesNotRefreshWhenStartedWithCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := newFakeSnapshotter(testSnapshot{AttemptTime: now, Success: true, Value: 1})
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	collector.Start(ctx)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		collector.mu.Lock()
+		started := collector.backgroundStarted
+		collector.mu.Unlock()
+		if !started {
+			if calls := snapshotter.calls.Load(); calls != 0 {
+				t.Fatalf("snapshot calls = %d, want 0", calls)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("backgroundStarted stayed true after starting with a canceled context")
+}
+
+func TestSnapshotCollectorStartAcceptsNilContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := newFakeSnapshotter(testSnapshot{AttemptTime: now, Success: true, Value: 1})
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+
+	var ctx context.Context
+	collector.Start(ctx)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if snapshotter.calls.Load() > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("snapshotter was not called after Start(nil)")
+}
+
+func TestSnapshotCollectorSyncRefreshTimeoutAddsDeadline(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := &contextInspectingSnapshotter{}
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Namespace:          "demo_exporter",
+		Snapshotter:        snapshotter,
+		RefreshInterval:    time.Hour,
+		StatusFunc:         testSnapshotStatus,
+		SyncRefreshTimeout: time.Second,
+		Now:                func() time.Time { return now },
+	})
+
+	_ = exportertest.RegisterAndGather(t, collector)
+
+	deadline, ok := snapshotter.deadline.Load().(time.Time)
+	if !ok {
+		t.Fatal("snapshot context had no deadline")
+	}
+	if deadline.Before(time.Now()) {
+		t.Fatalf("snapshot context deadline = %v, want future deadline", deadline)
+	}
+}
+
+func TestSnapshotCollectorBackgroundRefreshUsesStartContextWithoutSyncTimeout(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := &contextInspectingSnapshotter{}
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Namespace:          "demo_exporter",
+		Snapshotter:        snapshotter,
+		RefreshInterval:    time.Hour,
+		StatusFunc:         testSnapshotStatus,
+		SyncRefreshTimeout: time.Second,
+		Now:                func() time.Time { return now },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	collector.Start(ctx)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if snapshotter.calls.Load() > 0 {
+			if snapshotter.hasDeadline.Load() {
+				t.Fatal("background refresh context had sync refresh deadline")
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("snapshotter was not called by background refresh")
+}
+
+func waitForBackgroundStopped[T any](t *testing.T, collector *SnapshotCollector[T]) {
+	t.Helper()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		collector.mu.Lock()
+		started := collector.backgroundStarted
+		collector.mu.Unlock()
+		if !started {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("backgroundStarted stayed true after context cancellation")
+}
+
+func waitForSnapshotCalls(t *testing.T, snapshotter *fakeSnapshotter, want int64) {
+	t.Helper()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if snapshotter.calls.Load() >= want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("snapshot calls = %d, want at least %d", snapshotter.calls.Load(), want)
 }
 
 func assertMetricHelp(t *testing.T, families []*dto.MetricFamily, name string, want string) {
@@ -269,4 +551,21 @@ func testSnapshotStatus(snapshot testSnapshot) SnapshotStatus {
 		AttemptTime: snapshot.AttemptTime,
 		Success:     snapshot.Success,
 	}
+}
+
+type contextInspectingSnapshotter struct {
+	calls       atomic.Int64
+	hasDeadline atomic.Bool
+	deadline    atomic.Value
+}
+
+func (s *contextInspectingSnapshotter) Snapshot(ctx context.Context, now time.Time) testSnapshot {
+	s.calls.Add(1)
+	if deadline, ok := ctx.Deadline(); ok {
+		s.hasDeadline.Store(true)
+		s.deadline.Store(deadline)
+	} else {
+		s.hasDeadline.Store(false)
+	}
+	return testSnapshot{AttemptTime: now, Success: true, Value: 1}
 }

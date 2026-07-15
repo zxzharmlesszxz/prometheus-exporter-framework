@@ -7,5 +7,5 @@ func FileMTimeSeconds(path string) float64 {
 	if err != nil {
 		return 0
 	}
-	return float64(info.ModTime().Unix())
+	return float64(info.ModTime().UnixNano()) / 1e9
 }

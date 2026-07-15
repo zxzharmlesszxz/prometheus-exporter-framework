@@ -20,6 +20,10 @@ type FeatureContract[C any, S any] interface {
 	SmokeSpec(ctx SmokeContext[C]) SmokeSpec
 }
 
+type featureSyncRefreshTimeout interface {
+	SyncRefreshTimeout() time.Duration
+}
+
 type FeatureDefaults[C any, S any] struct{}
 
 func (FeatureDefaults[C, S]) DefaultRefreshInterval() time.Duration {
@@ -64,6 +68,7 @@ func NewContractSnapshotFeatureSpec[C any, S any](options SpecOptions, contract 
 	return NewSnapshotFeatureSpec(SnapshotFeatureSpec[C, S]{
 		Options:                options,
 		DefaultRefreshInterval: contract.DefaultRefreshInterval(),
+		SyncRefreshTimeout:     contractSyncRefreshTimeout(contract),
 		Config:                 contract.DefaultConfig(),
 		RegisterFlagsFunc:      contract.RegisterFlags,
 		ValidateConfigFunc:     contract.ValidateConfig,
@@ -74,6 +79,13 @@ func NewContractSnapshotFeatureSpec[C any, S any](options SpecOptions, contract 
 		RuntimeConfigFunc:      contract.RuntimeConfig,
 		SmokeFunc:              contract.SmokeSpec,
 	})
+}
+
+func contractSyncRefreshTimeout[C any, S any](contract FeatureContract[C, S]) time.Duration {
+	if timeout, ok := contract.(featureSyncRefreshTimeout); ok {
+		return timeout.SyncRefreshTimeout()
+	}
+	return 0
 }
 
 func NewContractFeature[C any, S any](options SpecOptions, contract FeatureContract[C, S]) *Feature[C, S] {

@@ -7,8 +7,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Uint64Counter is the minimal atomic counter contract used by file scrape
+// helpers. *atomic.Uint64 satisfies this interface.
 type Uint64Counter interface {
+	// Add must atomically add delta and return the new value.
 	Add(uint64) uint64
+	// Load must atomically return the current cumulative value.
 	Load() uint64
 }
 
@@ -47,6 +51,7 @@ type FileScrapeMetrics struct {
 	FileModificationSeconds func(string) float64
 }
 
+// Describe emits all configured file/source scrape descriptors.
 func (m FileScrapeMetrics) Describe(ch chan<- *prometheus.Desc) {
 	if m.MTimeDesc != nil {
 		ch <- m.MTimeDesc
@@ -68,6 +73,12 @@ func (m FileScrapeMetrics) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
+// Begin starts scrape-time metric collection for callers that perform source
+// work directly inside Collect. It emits mtime immediately and returns a finish
+// callback that emits scrape duration and shared cumulative counters.
+//
+// Do not combine Begin with CollectResult for the same descriptors in one
+// Collect call: both modes emit mtime and duration metrics.
 func (m FileScrapeMetrics) Begin(ch chan<- prometheus.Metric) func() {
 	start := m.now()
 	if m.MTimeDesc != nil {
@@ -87,6 +98,9 @@ func (m FileScrapeMetrics) Begin(ch chan<- prometheus.Metric) func() {
 	}
 }
 
+// CollectResult emits metrics from a precomputed FileScrapeResult, usually one
+// stored in a snapshot. Use this mode instead of Begin when source work already
+// happened before Collect.
 func (m FileScrapeMetrics) CollectResult(ch chan<- prometheus.Metric, result FileScrapeResult) {
 	if m.MTimeDesc != nil {
 		ch <- prometheus.MustNewConstMetric(m.MTimeDesc, prometheus.GaugeValue, result.MTimeSeconds, m.LabelValues...)
@@ -105,12 +119,17 @@ func (m FileScrapeMetrics) CollectResult(ch chan<- prometheus.Metric, result Fil
 	}
 }
 
+// CollectValid emits the domain-defined validity gauge for the source.
 func (m FileScrapeMetrics) CollectValid(ch chan<- prometheus.Metric, valid bool) {
 	if m.ValidDesc != nil {
 		ch <- prometheus.MustNewConstMetric(m.ValidDesc, prometheus.GaugeValue, boolFloat(valid), m.LabelValues...)
 	}
 }
 
+// Scrape reads path, runs parse, and returns source-health bookkeeping. The
+// error counters are cumulative counters from the FileScraper, not per-call
+// error counts. Use separate counters per source when per-source totals are
+// required.
 func (s FileScraper) Scrape(path string, parse func([]byte) error) (result FileScrapeResult) {
 	start := s.now()
 	result = FileScrapeResult{
@@ -129,6 +148,7 @@ func (s FileScraper) Scrape(path string, parse func([]byte) error) (result FileS
 		result.Err = err
 		return result
 	}
+	result.Up = true
 	if parse != nil {
 		if err := parse(content); err != nil {
 			addCounter(s.ParseErrorsTotal)
@@ -136,7 +156,6 @@ func (s FileScraper) Scrape(path string, parse func([]byte) error) (result FileS
 			return result
 		}
 	}
-	result.Up = true
 	return result
 }
 
@@ -160,10 +179,16 @@ func (m FileScrapeMetrics) now() time.Time {
 }
 
 func (m FileScrapeMetrics) since(start time.Time) time.Duration {
+	var duration time.Duration
 	if m.Now != nil {
-		return m.Now().Sub(start)
+		duration = m.Now().Sub(start)
+	} else {
+		duration = time.Since(start)
 	}
-	return time.Since(start)
+	if duration < 0 {
+		return 0
+	}
+	return duration
 }
 
 func (m FileScrapeMetrics) fileModificationSeconds(path string) float64 {
@@ -181,10 +206,16 @@ func (s FileScraper) now() time.Time {
 }
 
 func (s FileScraper) since(start time.Time) time.Duration {
+	var duration time.Duration
 	if s.Now != nil {
-		return s.Now().Sub(start)
+		duration = s.Now().Sub(start)
+	} else {
+		duration = time.Since(start)
 	}
-	return time.Since(start)
+	if duration < 0 {
+		return 0
+	}
+	return duration
 }
 
 func (s FileScraper) readFile(path string) ([]byte, error) {

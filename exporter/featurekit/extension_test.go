@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,8 +41,10 @@ func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
 	t.Parallel()
 
 	type configFlagTestConfig struct {
-		Name    string
-		Targets []string
+		Name       string
+		NameSet    bool
+		Targets    []string
+		TargetsSet bool
 	}
 
 	config := configFlagTestConfig{Name: "default"}
@@ -53,6 +56,9 @@ func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
 			Help:        "Demo name",
 			Default:     "default",
 			Placeholder: "example",
+			MarkSet: func(config *configFlagTestConfig) {
+				config.NameSet = true
+			},
 			Bind: func(flag *kingpin.FlagClause, config *configFlagTestConfig) {
 				flag.StringVar(&config.Name)
 			},
@@ -60,6 +66,9 @@ func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
 		{
 			Name: "target",
 			Help: "Demo target",
+			MarkSet: func(config *configFlagTestConfig) {
+				config.TargetsSet = true
+			},
 			Bind: func(flag *kingpin.FlagClause, config *configFlagTestConfig) {
 				flag.StringsVar(&config.Targets)
 			},
@@ -72,9 +81,83 @@ func TestRegisterFeatureConfigFlagSpecs(t *testing.T) {
 	if config.Name != "custom" {
 		t.Fatalf("Name = %q, want custom", config.Name)
 	}
+	if !config.NameSet {
+		t.Fatal("NameSet = false, want true")
+	}
 	if want := []string{"node-a", "node-b"}; !reflect.DeepEqual(config.Targets, want) {
 		t.Fatalf("Targets = %v, want %v", config.Targets, want)
 	}
+	if !config.TargetsSet {
+		t.Fatal("TargetsSet = false, want true")
+	}
+}
+
+func TestRegisterFeatureConfigFlagSpecsMarkSetOnlyForExplicitFlags(t *testing.T) {
+	t.Parallel()
+
+	type configFlagTestConfig struct {
+		Name    string
+		NameSet bool
+	}
+
+	config := configFlagTestConfig{Name: "default"}
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	RegisterFeatureConfigFlagSpecs(app, FlagContext{FeatureName: "demo"}, &config, []FeatureConfigFlagSpec[configFlagTestConfig]{
+		{
+			Name:    "name",
+			Help:    "Demo name",
+			Default: "default",
+			MarkSet: func(config *configFlagTestConfig) {
+				config.NameSet = true
+			},
+			Bind: func(flag *kingpin.FlagClause, config *configFlagTestConfig) {
+				flag.StringVar(&config.Name)
+			},
+		},
+	})
+
+	if _, err := app.Parse(nil); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if config.Name != "default" {
+		t.Fatalf("Name = %q, want default", config.Name)
+	}
+	if config.NameSet {
+		t.Fatal("NameSet = true, want false")
+	}
+
+	if _, err := app.Parse([]string{"--demo.name=default"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if config.Name != "default" {
+		t.Fatalf("Name = %q, want default", config.Name)
+	}
+	if !config.NameSet {
+		t.Fatal("NameSet = false, want true")
+	}
+}
+
+func TestRegisterFeatureConfigFlagSpecsRequiresBind(t *testing.T) {
+	t.Parallel()
+
+	type configFlagTestConfig struct{}
+	defer func() {
+		got := recover()
+		if got == nil {
+			t.Fatal("panic = nil, want missing Bind panic")
+		}
+		if message, ok := got.(string); !ok || message != `feature config flag "demo.name" is missing Bind` {
+			t.Fatalf("panic = %T(%v), want missing Bind message", got, got)
+		}
+	}()
+
+	RegisterFeatureConfigFlagSpecs(
+		kingpin.New("test", ""),
+		FlagContext{FeatureName: "demo"},
+		&configFlagTestConfig{},
+		[]FeatureConfigFlagSpec[configFlagTestConfig]{{Name: "name"}},
+	)
 }
 
 func TestNewSnapshotExtensionFeatureRegistersConfigFlagSpecs(t *testing.T) {
@@ -121,6 +204,9 @@ func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
+	var validated bool
+	var builtSnapshotter bool
+	var resolveCalls atomic.Int32
 	feature := NewSnapshotExtensionFeature[extensionTestConfig, extensionTestSnapshot](
 		SpecOptions{
 			FeatureName:            "demo",
@@ -138,6 +224,7 @@ func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 				app.Flag(ctx.FeatureName+".name", "test name").Default(config.Name).StringVar(&config.Name)
 			},
 			ResolveConfigFunc: func(featureName string, config extensionTestConfig) (extensionTestConfig, string, bool, error) {
+				resolveCalls.Add(1)
 				var fileConfig extensionTestFileConfig
 				path, loaded, err := LoadFeatureConfigFile(featureName, config.ConfigFile, &fileConfig)
 				if err != nil || !loaded {
@@ -148,8 +235,22 @@ func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 				}
 				return config, path, true, nil
 			},
+			ValidateConfigFunc: func(config extensionTestConfig) error {
+				validated = true
+				if config.Name != "from-file" {
+					t.Fatalf("ValidateConfigFunc config.Name = %q, want from-file", config.Name)
+				}
+				return nil
+			},
 			RuntimeConfigFunc: func(_ RuntimeConfigContext[extensionTestConfig], config extensionTestConfig) []any {
 				return []any{"name", config.Name}
+			},
+			SnapshotEngineFactory: func(ctx CollectorContext[extensionTestConfig]) (SnapshotEngine[extensionTestSnapshot], error) {
+				builtSnapshotter = true
+				if ctx.Config.Name != "from-file" {
+					t.Fatalf("SnapshotEngineFactory config.Name = %q, want from-file", ctx.Config.Name)
+				}
+				return extensionTestEngine{snapshot: extensionTestSnapshot{Value: 1}}, nil
 			},
 			SmokeFunc: func(ctx SmokeContext[extensionTestConfig]) SmokeSpec {
 				return SmokeSpec{
@@ -187,6 +288,19 @@ func TestNewSnapshotExtensionFeatureDelegatesStableContract(t *testing.T) {
 	}
 	if got := feature.SmokeSpec(); !reflect.DeepEqual(got, wantSmoke) {
 		t.Fatalf("SmokeSpec() = %+v, want %+v", got, wantSmoke)
+	}
+
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	if !validated {
+		t.Fatal("ValidateConfigFunc was not called")
+	}
+	if !builtSnapshotter {
+		t.Fatal("SnapshotEngineFactory was not called")
+	}
+	if got := resolveCalls.Load(); got != 1 {
+		t.Fatalf("ResolveConfigFunc calls = %d, want 1", got)
 	}
 }
 
@@ -398,6 +512,47 @@ func TestLoadFeatureConfigFileHappyPath(t *testing.T) {
 	}
 	if cfg.Name != "from-file" {
 		t.Fatalf("cfg.Name = %q, want from-file", cfg.Name)
+	}
+}
+
+func TestSnapshotExtensionRuntimeConfigReportsConfigFileError(t *testing.T) {
+	t.Parallel()
+
+	configFile := filepath.Join(t.TempDir(), "bad.yml")
+	if err := os.WriteFile(configFile, []byte("unexpected: value\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	feature := NewSnapshotExtensionFeature[extensionTestConfig, extensionTestSnapshot](
+		SpecOptions{FeatureName: "demo"},
+		SnapshotFeatureExtension[extensionTestConfig, extensionTestSnapshot]{
+			ConfigFileFunc: func(config *extensionTestConfig) *string {
+				return &config.ConfigFile
+			},
+			ResolveConfigFunc: func(featureName string, config extensionTestConfig) (extensionTestConfig, string, bool, error) {
+				var fileConfig extensionTestFileConfig
+				path, loaded, err := LoadFeatureConfigFile(featureName, config.ConfigFile, &fileConfig)
+				return config, path, loaded, err
+			},
+		},
+	)
+
+	app := kingpin.New("test", "")
+	app.Terminate(func(int) {})
+	feature.RegisterFlags(app)
+	if _, err := app.Parse([]string{"--demo.config-file=" + configFile}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	config := feature.RuntimeConfig()
+	if got := configValue(t, config, "config_file"); got != configFile {
+		t.Fatalf("config_file = %v, want %s", got, configFile)
+	}
+	if got := configValue(t, config, "config_file_loaded"); got != false {
+		t.Fatalf("config_file_loaded = %v, want false", got)
+	}
+	if got := configValue(t, config, "config_error"); got == "" {
+		t.Fatalf("config_error = %v, want non-empty parse error", got)
 	}
 }
 

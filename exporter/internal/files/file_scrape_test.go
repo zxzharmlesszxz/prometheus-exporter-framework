@@ -154,6 +154,26 @@ func TestFileScrapeMetricsUsesDefaultHooks(t *testing.T) {
 	}
 }
 
+func TestFileScrapeMetricsClampsNegativeDuration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	durationDesc := prometheus.NewDesc("clamped_file_scrape_duration_seconds", "File scrape duration.", nil, nil)
+	collector := fileScrapeTestCollector{
+		metrics: FileScrapeMetrics{
+			ScrapeDurationDesc: durationDesc,
+			Now: func() time.Time {
+				current := now
+				now = now.Add(-time.Second)
+				return current
+			},
+		},
+	}
+
+	families := exportertest.RegisterAndGather(t, collector)
+	exportertest.AssertMetricValue(t, families, "clamped_file_scrape_duration_seconds", nil, 0)
+}
+
 func TestFileScraperScrape(t *testing.T) {
 	t.Parallel()
 
@@ -198,11 +218,11 @@ func TestFileScraperScrape(t *testing.T) {
 			parse: func([]byte) error {
 				return parseErr
 			},
+			wantUp:          true,
 			wantErr:         parseErr,
 			wantParseErrors: 1,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -249,6 +269,76 @@ func TestFileScraperScrape(t *testing.T) {
 				t.Fatalf("ScrapeDurationSeconds = %v, want 0.125", result.ScrapeDurationSeconds)
 			}
 		})
+	}
+}
+
+func TestFileScraperScrapeClampsNegativeDuration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	scraper := FileScraper{
+		Now: func() time.Time {
+			current := now
+			now = now.Add(-time.Second)
+			return current
+		},
+		ReadFile: func(string) ([]byte, error) {
+			return []byte("payload"), nil
+		},
+		FileModificationSeconds: func(string) float64 {
+			return 123
+		},
+	}
+
+	result := scraper.Scrape("/tmp/input", nil)
+	if result.ScrapeDurationSeconds != 0 {
+		t.Fatalf("ScrapeDurationSeconds = %v, want 0", result.ScrapeDurationSeconds)
+	}
+}
+
+func TestFileScraperScrapeReturnsCumulativeErrorTotals(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("read failed")
+	parseErr := errors.New("parse failed")
+	now := time.Unix(1_700_000_000, 0)
+	readErrors := atomic.Uint64{}
+	parseErrors := atomic.Uint64{}
+	scraper := FileScraper{
+		ReadErrorsTotal:  &readErrors,
+		ParseErrorsTotal: &parseErrors,
+		Now: func() time.Time {
+			current := now
+			now = now.Add(time.Millisecond)
+			return current
+		},
+		FileModificationSeconds: func(string) float64 {
+			return 123
+		},
+	}
+
+	scraper.ReadFile = func(string) ([]byte, error) {
+		return nil, readErr
+	}
+	first := scraper.Scrape("/tmp/input", nil)
+	second := scraper.Scrape("/tmp/input", nil)
+	if first.ReadErrorsTotal != 1 || second.ReadErrorsTotal != 2 {
+		t.Fatalf("read error totals = %d, %d; want cumulative 1, 2", first.ReadErrorsTotal, second.ReadErrorsTotal)
+	}
+
+	scraper.ReadFile = func(string) ([]byte, error) {
+		return []byte("payload"), nil
+	}
+	parse := func([]byte) error {
+		return parseErr
+	}
+	third := scraper.Scrape("/tmp/input", parse)
+	fourth := scraper.Scrape("/tmp/input", parse)
+	if third.ParseErrorsTotal != 1 || fourth.ParseErrorsTotal != 2 {
+		t.Fatalf("parse error totals = %d, %d; want cumulative 1, 2", third.ParseErrorsTotal, fourth.ParseErrorsTotal)
+	}
+	if fourth.ReadErrorsTotal != 2 {
+		t.Fatalf("read error total after parse errors = %d, want 2", fourth.ReadErrorsTotal)
 	}
 }
 

@@ -1,6 +1,10 @@
 package featurekit
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 type FileScrapeMetricIDs struct {
 	MTimeSeconds          string
@@ -21,6 +25,9 @@ type FileScrapeMetricDescs struct {
 }
 
 func FileScrapeMetricIDsFor(source string) FileScrapeMetricIDs {
+	if strings.TrimSpace(source) == "" {
+		panic("file scrape metric source is required")
+	}
 	return FileScrapeMetricIDs{
 		MTimeSeconds:          source + "_mtime_seconds",
 		Up:                    source + "_up",
@@ -59,14 +66,14 @@ func FileScrapeMetricSpecs(source string, labels []string) []FeatureMetricSpec {
 			ID:     ids.ReadErrorsTotal,
 			Scope:  MetricScopeFeature,
 			Name:   "_" + source + "_read_errors_total",
-			Help:   "Total number of " + source + " source read errors.",
+			Help:   "Cumulative total number of " + source + " source read errors.",
 			Labels: labels,
 		},
 		{
 			ID:     ids.ParseErrorsTotal,
 			Scope:  MetricScopeFeature,
 			Name:   "_" + source + "_parse_errors_total",
-			Help:   "Total number of " + source + " source parse errors.",
+			Help:   "Cumulative total number of " + source + " source parse or validity errors.",
 			Labels: labels,
 		},
 		{

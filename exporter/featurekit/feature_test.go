@@ -37,6 +37,7 @@ type testStartableCollector struct {
 	desc   *prometheus.Desc
 	value  float64
 	starts *atomic.Int32
+	ctx    context.Context
 }
 
 func newTestStartableCollector(value float64, starts *atomic.Int32) *testStartableCollector {
@@ -55,7 +56,8 @@ func (c *testStartableCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, c.value)
 }
 
-func (c *testStartableCollector) Start(context.Context) {
+func (c *testStartableCollector) Start(ctx context.Context) {
+	c.ctx = ctx
 	c.starts.Add(1)
 }
 
@@ -170,6 +172,194 @@ func TestFeatureReportsValidationError(t *testing.T) {
 	err := feature.RegisterCollectors(framework.FeatureContext{}, prometheus.NewRegistry())
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("RegisterCollectors() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestFeatureRejectsNilCollectorFromFactory(t *testing.T) {
+	t.Parallel()
+
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			return nil
+		},
+	})
+
+	err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry())
+	if err == nil {
+		t.Fatal("RegisterCollectors() error = nil, want nil collector error")
+	}
+	if got, want := err.Error(), "create demo collector: collector factory returned nil"; got != want {
+		t.Fatalf("RegisterCollectors() error = %q, want %q", got, want)
+	}
+}
+
+func TestFeaturePreparesConfigBeforeValidationAndSnapshotter(t *testing.T) {
+	t.Parallel()
+
+	var validated bool
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		Config:      testConfig{target: "raw"},
+		PrepareConfigFunc: func(featureName string, config testConfig) (testConfig, error) {
+			if featureName != "demo" {
+				t.Fatalf("featureName = %q, want demo", featureName)
+			}
+			if config.target != "raw" {
+				t.Fatalf("prepare config target = %q, want raw", config.target)
+			}
+			config.target = "prepared"
+			return config, nil
+		},
+		ValidateConfigFunc: func(config testConfig) error {
+			validated = true
+			if config.target != "prepared" {
+				t.Fatalf("validate config target = %q, want prepared", config.target)
+			}
+			return nil
+		},
+		NewSnapshotterFunc: func(ctx CollectorContext[testConfig]) (framework.Snapshotter[testSnapshot], error) {
+			if !validated {
+				t.Fatal("NewSnapshotterFunc called before ValidateConfigFunc")
+			}
+			if ctx.Config.target != "prepared" {
+				t.Fatalf("collector config target = %q, want prepared", ctx.Config.target)
+			}
+			return testSnapshotter{snapshot: testSnapshot{success: true, value: 3}}, nil
+		},
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			return newTestStartableCollector(3, &atomic.Int32{})
+		},
+	})
+
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	if !validated {
+		t.Fatal("ValidateConfigFunc was not called")
+	}
+}
+
+func TestFeatureCachesPreparedConfigBetweenRuntimeConfigAndCollectors(t *testing.T) {
+	t.Parallel()
+
+	prepareCalls := atomic.Int32{}
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		Config:      testConfig{target: "raw"},
+		PrepareConfigFunc: func(featureName string, config testConfig) (testConfig, error) {
+			prepareCalls.Add(1)
+			config.target = "prepared"
+			return config, nil
+		},
+		RuntimeConfigFunc: func(ctx RuntimeConfigContext[testConfig]) []any {
+			return []any{"target", ctx.Config.target}
+		},
+		NewSnapshotterFunc: func(ctx CollectorContext[testConfig]) (framework.Snapshotter[testSnapshot], error) {
+			if ctx.Config.target != "prepared" {
+				t.Fatalf("collector config target = %q, want prepared", ctx.Config.target)
+			}
+			return testSnapshotter{snapshot: testSnapshot{success: true, value: 4}}, nil
+		},
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			return newTestStartableCollector(4, &atomic.Int32{})
+		},
+	})
+
+	if got := exportertest.RuntimeConfigValue(t, feature.RuntimeConfig(), "target"); got != "prepared" {
+		t.Fatalf("runtime target = %v, want prepared", got)
+	}
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	if got := prepareCalls.Load(); got != 1 {
+		t.Fatalf("prepare calls = %d, want 1", got)
+	}
+}
+
+func TestFeatureCachesPreparedConfigBetweenCollectorsAndRuntimeConfig(t *testing.T) {
+	t.Parallel()
+
+	prepareCalls := atomic.Int32{}
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		Config:      testConfig{target: "raw"},
+		PrepareConfigFunc: func(featureName string, config testConfig) (testConfig, error) {
+			prepareCalls.Add(1)
+			config.target = "prepared"
+			return config, nil
+		},
+		RuntimeConfigFunc: func(ctx RuntimeConfigContext[testConfig]) []any {
+			return []any{"target", ctx.Config.target}
+		},
+		NewSnapshotterFunc: func(ctx CollectorContext[testConfig]) (framework.Snapshotter[testSnapshot], error) {
+			if ctx.Config.target != "prepared" {
+				t.Fatalf("collector config target = %q, want prepared", ctx.Config.target)
+			}
+			return testSnapshotter{snapshot: testSnapshot{success: true, value: 4}}, nil
+		},
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			return newTestStartableCollector(4, &atomic.Int32{})
+		},
+	})
+
+	if err := feature.RegisterCollectors(framework.FeatureContext{Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	if got := exportertest.RuntimeConfigValue(t, feature.RuntimeConfig(), "target"); got != "prepared" {
+		t.Fatalf("runtime target = %v, want prepared", got)
+	}
+	if got := prepareCalls.Load(); got != 1 {
+		t.Fatalf("prepare calls = %d, want 1", got)
+	}
+}
+
+func TestFeatureRuntimeConfigReportsPrepareError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("bad config")
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		Config:      testConfig{target: "raw"},
+		PrepareConfigFunc: func(string, testConfig) (testConfig, error) {
+			return testConfig{target: "ignored"}, wantErr
+		},
+		RuntimeConfigFunc: func(ctx RuntimeConfigContext[testConfig]) []any {
+			return []any{"target", ctx.Config.target}
+		},
+	})
+
+	config := feature.RuntimeConfig()
+	if got := exportertest.RuntimeConfigValue(t, config, "config_error"); got != wantErr.Error() {
+		t.Fatalf("config_error = %v, want %q", got, wantErr.Error())
+	}
+	if got := exportertest.RuntimeConfigValue(t, config, "target"); got != "raw" {
+		t.Fatalf("target = %v, want raw fallback config", got)
+	}
+}
+
+func TestFeatureRegisterCollectorsStartsCollectorWithFeatureContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey struct{}
+	startContext := context.WithValue(context.Background(), contextKey{}, "feature-context")
+	starts := atomic.Int32{}
+	startable := newTestStartableCollector(5, &starts)
+	feature := NewFeature(FeatureSpec[testConfig, testSnapshot]{
+		FeatureName: "demo",
+		NewCollectorFunc: func(string, string, *slog.Logger, framework.Snapshotter[testSnapshot], time.Duration) framework.StartableCollector {
+			return startable
+		},
+	})
+
+	if err := feature.RegisterCollectors(framework.FeatureContext{Context: startContext, Namespace: "demo_exporter"}, prometheus.NewRegistry()); err != nil {
+		t.Fatalf("RegisterCollectors() error = %v", err)
+	}
+	if starts.Load() != 1 {
+		t.Fatalf("starts = %d, want 1", starts.Load())
+	}
+	if startable.ctx != startContext {
+		t.Fatal("collector Start() did not receive FeatureContext.Context")
 	}
 }
 

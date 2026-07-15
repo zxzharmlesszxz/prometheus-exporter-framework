@@ -13,7 +13,7 @@ func UnixTimestamp(value time.Time) float64 {
 	if value.IsZero() {
 		return 0
 	}
-	return float64(value.Unix())
+	return float64(value.UnixNano()) / float64(time.Second)
 }
 
 func NormalizeDuration(value time.Duration, fallback time.Duration) time.Duration {

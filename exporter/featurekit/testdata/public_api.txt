@@ -2,55 +2,197 @@ const MetricScopeAbsolute
 const MetricScopeFeature
 const MetricScopeNamespace
 const MetricScopeUnset
-func DefaultFeatureConfigFile
-func FeatureMetricName
-func FileScrapeMetricIDsFor
-func FileScrapeMetricSpecs
-func LoadFeatureConfigFile
-func LoadFeatureMetricDescriptors
-func NewContractFeature
-func NewContractSnapshotFeatureSpec
-func NewFeature
-func NewFeatureMetrics
-func NewSnapshotCollector
-func NewSnapshotExtensionFeature
-func NewSnapshotExtensionFeatureSpec
-func NewSnapshotFeatureSpec
-func NewSnapshotMetricsCollector
-func RegisterFeatureConfigFlagSpecs
-func ResolveFeatureConfig
-func ResolveSnapshotCollectorOptions
-type CollectorContext
-type Feature
-type FeatureConfigFileFunc
-type FeatureConfigFlagSpec
-type FeatureConfigResolver
-type FeatureContract
-type FeatureDefaults
+field CollectorContext.Config C
+field CollectorContext.FeatureName string
+field CollectorContext.Framework framework.FeatureContext
+field CollectorContext.RefreshInterval time.Duration
+field FeatureConfigFlagSpec.Bind func(*kingpin.FlagClause, *C)
+field FeatureConfigFlagSpec.Default string
+field FeatureConfigFlagSpec.Help string
+field FeatureConfigFlagSpec.MarkSet func(*C)
+field FeatureConfigFlagSpec.Name string
+field FeatureConfigFlagSpec.Placeholder string
+field FeatureMetricHandlers.Collect FeatureMetricsCollectFunc[S]
+field FeatureMetricHandlers.LogError FeatureMetricsLogFunc[S]
+field FeatureMetricSpec.Help string
+field FeatureMetricSpec.ID string
+field FeatureMetricSpec.Labels []string
+field FeatureMetricSpec.Name string
+field FeatureMetricSpec.Scope MetricScope
+field FeatureMetricsContext.Descriptors FeatureMetricDescriptors
+field FeatureMetricsContext.SnapshotMetricsContext SnapshotMetricsContext[S]
+field FeatureSpec.Config C
+field FeatureSpec.DefaultRefreshInterval time.Duration
+field FeatureSpec.FallbackRefreshInterval time.Duration
+field FeatureSpec.FeatureName string
+field FeatureSpec.NewCollectorFunc NewCollectorFunc[S]
+field FeatureSpec.NewSnapshotterFunc func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+field FeatureSpec.PrepareConfigFunc func(featureName string, config C) (C, error)
+field FeatureSpec.RegisterFlagsFunc func(app *kingpin.Application, ctx FlagContext, config *C)
+field FeatureSpec.RuntimeConfigFunc func(ctx RuntimeConfigContext[C]) []any
+field FeatureSpec.Smoke SmokeSpec
+field FeatureSpec.SmokeFunc func(ctx SmokeContext[C]) SmokeSpec
+field FeatureSpec.ValidateConfigFunc func(config C) error
+field FileScrapeMetricDescs.MTimeDesc *prometheus.Desc
+field FileScrapeMetricDescs.ParseErrorsTotalDesc *prometheus.Desc
+field FileScrapeMetricDescs.ReadErrorsTotalDesc *prometheus.Desc
+field FileScrapeMetricDescs.ScrapeDurationDesc *prometheus.Desc
+field FileScrapeMetricDescs.UpDesc *prometheus.Desc
+field FileScrapeMetricDescs.ValidDesc *prometheus.Desc
+field FileScrapeMetricIDs.MTimeSeconds string
+field FileScrapeMetricIDs.ParseErrorsTotal string
+field FileScrapeMetricIDs.ReadErrorsTotal string
+field FileScrapeMetricIDs.ScrapeDurationSeconds string
+field FileScrapeMetricIDs.Up string
+field FileScrapeMetricIDs.Valid string
+field FlagContext.DefaultRefreshInterval time.Duration
+field FlagContext.FeatureName string
+field RuntimeConfigContext.Config C
+field RuntimeConfigContext.FeatureName string
+field RuntimeConfigContext.RefreshInterval time.Duration
+field SmokeContext.Config C
+field SmokeContext.FeatureName string
+field SnapshotCollectorOptions.CollectFunc func(chan<- prometheus.Metric, S, time.Time)
+field SnapshotCollectorOptions.DefaultFeatureName string
+field SnapshotCollectorOptions.DefaultMetricNamespace string
+field SnapshotCollectorOptions.DefaultRefreshInterval time.Duration
+field SnapshotCollectorOptions.DefaultSnapshotter framework.Snapshotter[S]
+field SnapshotCollectorOptions.DescribeFunc func(chan<- *prometheus.Desc)
+field SnapshotCollectorOptions.ErrorLogFunc func(*slog.Logger, S)
+field SnapshotCollectorOptions.FeatureName string
+field SnapshotCollectorOptions.Logger *slog.Logger
+field SnapshotCollectorOptions.Namespace string
+field SnapshotCollectorOptions.Now func() time.Time
+field SnapshotCollectorOptions.RefreshInterval time.Duration
+field SnapshotCollectorOptions.Snapshotter framework.Snapshotter[S]
+field SnapshotCollectorOptions.StatusFunc func(S) framework.SnapshotStatus
+field SnapshotCollectorOptions.SyncRefreshTimeout time.Duration
+field SnapshotFeatureExtension.ConfigFileFunc FeatureConfigFileFunc[C]
+field SnapshotFeatureExtension.ConfigFlagSpecs []FeatureConfigFlagSpec[C]
+field SnapshotFeatureExtension.DefaultConfigFunc func() C
+field SnapshotFeatureExtension.DefaultRefreshInterval time.Duration
+field SnapshotFeatureExtension.DefaultSnapshotEngine SnapshotEngine[S]
+field SnapshotFeatureExtension.DefaultSnapshotter framework.Snapshotter[S]
+field SnapshotFeatureExtension.ErrorLogFunc func(*slog.Logger, S)
+field SnapshotFeatureExtension.MetricHandlers FeatureMetricHandlers[S]
+field SnapshotFeatureExtension.MetricSpecs []FeatureMetricSpec
+field SnapshotFeatureExtension.MetricsFunc SnapshotMetricsFunc[S]
+field SnapshotFeatureExtension.NewSnapshotterFunc func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+field SnapshotFeatureExtension.RegisterFlagsFunc func(app *kingpin.Application, ctx FlagContext, config *C)
+field SnapshotFeatureExtension.ResolveConfigFunc FeatureConfigResolver[C]
+field SnapshotFeatureExtension.RuntimeConfigFunc func(ctx RuntimeConfigContext[C], config C) []any
+field SnapshotFeatureExtension.Smoke SmokeSpec
+field SnapshotFeatureExtension.SmokeFunc func(ctx SmokeContext[C]) SmokeSpec
+field SnapshotFeatureExtension.SnapshotEngineFactory SnapshotEngineFactory[C, S]
+field SnapshotFeatureExtension.StatusFunc func(S) framework.SnapshotStatus
+field SnapshotFeatureExtension.SyncRefreshTimeout time.Duration
+field SnapshotFeatureExtension.ValidateConfigFunc func(config C) error
+field SnapshotFeatureSpec.Config C
+field SnapshotFeatureSpec.DefaultRefreshInterval time.Duration
+field SnapshotFeatureSpec.DefaultSnapshotter framework.Snapshotter[S]
+field SnapshotFeatureSpec.ErrorLogFunc func(*slog.Logger, S)
+field SnapshotFeatureSpec.MetricsFunc SnapshotMetricsFunc[S]
+field SnapshotFeatureSpec.NewSnapshotterFunc func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+field SnapshotFeatureSpec.Options SpecOptions
+field SnapshotFeatureSpec.PrepareConfigFunc func(featureName string, config C) (C, error)
+field SnapshotFeatureSpec.RegisterFlagsFunc func(app *kingpin.Application, ctx FlagContext, config *C)
+field SnapshotFeatureSpec.RuntimeConfigFunc func(ctx RuntimeConfigContext[C]) []any
+field SnapshotFeatureSpec.Smoke SmokeSpec
+field SnapshotFeatureSpec.SmokeFunc func(ctx SmokeContext[C]) SmokeSpec
+field SnapshotFeatureSpec.StatusFunc func(S) framework.SnapshotStatus
+field SnapshotFeatureSpec.SyncRefreshTimeout time.Duration
+field SnapshotFeatureSpec.ValidateConfigFunc func(config C) error
+field SnapshotMetricsCollectorOptions.MetricsFunc SnapshotMetricsFunc[S]
+field SnapshotMetricsCollectorOptions.SnapshotCollectorOptions SnapshotCollectorOptions[S]
+field SnapshotMetricsContext.FeatureName string
+field SnapshotMetricsContext.Namespace string
+field SnapshotMetricsContext.Snapshotter framework.Snapshotter[S]
+field SpecOptions.DefaultRefreshInterval time.Duration
+field SpecOptions.FallbackRefreshInterval time.Duration
+field SpecOptions.FeatureName string
+func DefaultFeatureConfigFile func(featureName string) string
+func FeatureMetricName func(featureName string, namespace string, id string, specs []FeatureMetricSpec) string
+func FileScrapeMetricIDsFor func(source string) FileScrapeMetricIDs
+func FileScrapeMetricSpecs func(source string, labels []string) []FeatureMetricSpec
+func LoadFeatureConfigFile func(featureName string, explicitPath string, target any) (string, bool, error)
+func LoadFeatureMetricDescriptors func(featureName string, namespace string, specs []FeatureMetricSpec) FeatureMetricDescriptors
+func NewContractFeature func[C any, S any](options SpecOptions, contract FeatureContract[C, S]) *Feature[C, S]
+func NewContractSnapshotFeatureSpec func[C any, S any](options SpecOptions, contract FeatureContract[C, S]) FeatureSpec[C, S]
+func NewFeature func[C any, S any](spec FeatureSpec[C, S]) *Feature[C, S]
+func NewFeatureMetrics func[S any](ctx SnapshotMetricsContext[S], specs []FeatureMetricSpec, handlers FeatureMetricHandlers[S]) SnapshotMetrics[S]
+func NewSnapshotCollector func[S any](options SnapshotCollectorOptions[S]) *framework.SnapshotCollector[S]
+func NewSnapshotExtensionFeature func[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) *Feature[C, S]
+func NewSnapshotExtensionFeatureSpec func[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) FeatureSpec[C, S]
+func NewSnapshotFeatureSpec func[C any, S any](spec SnapshotFeatureSpec[C, S]) FeatureSpec[C, S]
+func NewSnapshotMetricsCollector func[S any](options SnapshotMetricsCollectorOptions[S]) *framework.SnapshotCollector[S]
+func RegisterFeatureConfigFlagSpecs func[C any](app *kingpin.Application, ctx FlagContext, config *C, specs []FeatureConfigFlagSpec[C])
+func ResolveFeatureConfig func[C any](featureName string, config C, configFileFunc FeatureConfigFileFunc[C], resolveFunc FeatureConfigResolver[C]) (C, string, bool, error)
+func ResolveSnapshotCollectorOptions func[S any](options SnapshotCollectorOptions[S]) SnapshotCollectorOptions[S]
+interface FeatureContract.DefaultConfig func() C
+interface FeatureContract.DefaultRefreshInterval func() time.Duration
+interface FeatureContract.DefaultSnapshotter func() framework.Snapshotter[S]
+interface FeatureContract.NewMetrics func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S]
+interface FeatureContract.NewSnapshotter func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+interface FeatureContract.RegisterFlags func(app *kingpin.Application, ctx FlagContext, config *C)
+interface FeatureContract.RuntimeConfig func(ctx RuntimeConfigContext[C]) []any
+interface FeatureContract.SmokeSpec func(ctx SmokeContext[C]) SmokeSpec
+interface FeatureContract.SnapshotStatus func(snapshot S) framework.SnapshotStatus
+interface FeatureContract.ValidateConfig func(config C) error
+interface SnapshotEngine.Snapshot func(context.Context, time.Time) S
+interface SnapshotErrorLogger.LogSnapshotError func(logger *slog.Logger, snapshot S)
+interface SnapshotMetrics.Collect func(ch chan<- prometheus.Metric, snapshot S, now time.Time)
+interface SnapshotMetrics.Describe func(ch chan<- *prometheus.Desc)
+method (*Feature[C, S]) FeatureName func() string
+method (*Feature[C, S]) RegisterCollectors func(ctx framework.FeatureContext, registry *prometheus.Registry) error
+method (*Feature[C, S]) RegisterFlags func(app *kingpin.Application)
+method (*Feature[C, S]) RuntimeConfig func() []any
+method (*Feature[C, S]) SmokeSpec func() SmokeSpec
+method (FeatureDefaults[C, S]) DefaultConfig func() C
+method (FeatureDefaults[C, S]) DefaultRefreshInterval func() time.Duration
+method (FeatureDefaults[C, S]) DefaultSnapshotter func() framework.Snapshotter[S]
+method (FeatureDefaults[C, S]) NewMetrics func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S]
+method (FeatureDefaults[C, S]) NewSnapshotter func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+method (FeatureDefaults[C, S]) RegisterFlags func(app *kingpin.Application, ctx FlagContext, config *C)
+method (FeatureDefaults[C, S]) RuntimeConfig func(ctx RuntimeConfigContext[C]) []any
+method (FeatureDefaults[C, S]) SmokeSpec func(ctx SmokeContext[C]) SmokeSpec
+method (FeatureDefaults[C, S]) SnapshotStatus func(snapshot S) framework.SnapshotStatus
+method (FeatureDefaults[C, S]) ValidateConfig func(config C) error
+method (FeatureMetricDescriptors) Describe func(ch chan<- *prometheus.Desc)
+method (FeatureMetricDescriptors) Get func(id string) *prometheus.Desc
+method (FeatureMetricSpec) MetricName func(featureName string, namespace string) string
+method (FileScrapeMetricIDs) Descs func(descs FeatureMetricDescriptors) FileScrapeMetricDescs
+method (SnapshotEngineFunc[S]) Snapshot func(ctx context.Context, now time.Time) S
+type CollectorContext[C any]
+type FeatureConfigFileFunc[C any] func(config *C) *string
+type FeatureConfigFlagSpec[C any]
+type FeatureConfigResolver[C any] func(featureName string, config C) (C, string, bool, error)
+type FeatureContract[C any, S any]
+type FeatureDefaults[C any, S any]
 type FeatureMetricDescriptors
-type FeatureMetricHandlers
+type FeatureMetricHandlers[S any]
 type FeatureMetricSpec
-type FeatureMetricsCollectFunc
-type FeatureMetricsContext
-type FeatureMetricsLogFunc
-type FeatureSpec
+type FeatureMetricsCollectFunc[S any] func(ctx FeatureMetricsContext[S], ch chan<- prometheus.Metric, snapshot S, now time.Time)
+type FeatureMetricsContext[S any]
+type FeatureMetricsLogFunc[S any] func(ctx FeatureMetricsContext[S], logger *slog.Logger, snapshot S)
+type FeatureSpec[C any, S any]
+type Feature[C any, S any]
 type FileScrapeMetricDescs
 type FileScrapeMetricIDs
 type FlagContext
-type MetricScope
-type NewCollectorFunc
-type RuntimeConfigContext
-type SmokeContext
-type SmokeSpec
-type SnapshotCollectorOptions
-type SnapshotEngine
-type SnapshotEngineFactory
-type SnapshotEngineFunc
-type SnapshotErrorLogger
-type SnapshotFeatureExtension
-type SnapshotFeatureSpec
-type SnapshotMetrics
-type SnapshotMetricsCollectorOptions
-type SnapshotMetricsContext
-type SnapshotMetricsFunc
+type MetricScope int
+type NewCollectorFunc[S any] func(featureName string, namespace string, logger *slog.Logger, snapshotter framework.Snapshotter[S], refreshInterval time.Duration) framework.StartableCollector
+type RuntimeConfigContext[C any]
+type SmokeContext[C any]
+type SmokeSpec = framework.SmokeSpec
+type SnapshotCollectorOptions[S any]
+type SnapshotEngineFactory[C any, S any] func(ctx CollectorContext[C]) (SnapshotEngine[S], error)
+type SnapshotEngineFunc[S any] func(context.Context, time.Time) S
+type SnapshotEngine[S any]
+type SnapshotErrorLogger[S any]
+type SnapshotFeatureExtension[C any, S any]
+type SnapshotFeatureSpec[C any, S any]
+type SnapshotMetricsCollectorOptions[S any]
+type SnapshotMetricsContext[S any]
+type SnapshotMetricsFunc[S any] func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S]
+type SnapshotMetrics[S any]
 type SpecOptions

@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -15,8 +16,8 @@ func TestBoolFloat(t *testing.T) {
 }
 
 func TestUnixTimestamp(t *testing.T) {
-	if got := UnixTimestamp(time.Unix(1_700_000_000, 123)); got != 1_700_000_000 {
-		t.Fatalf("UnixTimestamp() = %v, want 1700000000", got)
+	if got, want := UnixTimestamp(time.Unix(1_700_000_000, 123_000_000)), 1_700_000_000.123; math.Abs(got-want) > 0.000001 {
+		t.Fatalf("UnixTimestamp() = %v, want %v", got, want)
 	}
 	if got := UnixTimestamp(time.Time{}); got != 0 {
 		t.Fatalf("UnixTimestamp(zero) = %v, want 0", got)

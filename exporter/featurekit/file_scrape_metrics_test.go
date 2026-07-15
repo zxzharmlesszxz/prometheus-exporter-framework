@@ -18,6 +18,14 @@ func TestFileScrapeMetricSpecs(t *testing.T) {
 	}
 
 	specs := featurekit.FileScrapeMetricSpecs("config", []string{"source"})
+	for _, spec := range specs {
+		if spec.ID == ids.ReadErrorsTotal && spec.Help != "Cumulative total number of config source read errors." {
+			t.Fatalf("read errors help = %q", spec.Help)
+		}
+		if spec.ID == ids.ParseErrorsTotal && spec.Help != "Cumulative total number of config source parse or validity errors." {
+			t.Fatalf("parse errors help = %q", spec.Help)
+		}
+	}
 	descs := ids.Descs(featurekit.LoadFeatureMetricDescriptors("demo", "", specs))
 	metrics := framework.FileScrapeMetrics{
 		LabelValues:          []string{"/tmp/config.yml"},
@@ -59,6 +67,22 @@ func TestFileScrapeMetricSpecs(t *testing.T) {
 	exportertest.AssertMetricValue(t, families, "demo_config_read_errors_total", labels, 2)
 	exportertest.AssertMetricValue(t, families, "demo_config_parse_errors_total", labels, 3)
 	exportertest.AssertMetricValue(t, families, "demo_config_scrape_duration_seconds", labels, 0.25)
+}
+
+func TestFileScrapeMetricIDsForRequiresSource(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		got := recover()
+		if got == nil {
+			t.Fatal("panic = nil, want missing source panic")
+		}
+		if message, ok := got.(string); !ok || message != "file scrape metric source is required" {
+			t.Fatalf("panic = %T(%v), want missing source message", got, got)
+		}
+	}()
+
+	_ = featurekit.FileScrapeMetricIDsFor(" ")
 }
 
 type callbackCollector struct {

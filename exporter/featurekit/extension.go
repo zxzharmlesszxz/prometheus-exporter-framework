@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -20,39 +21,46 @@ type FeatureConfigResolver[C any] func(featureName string, config C) (C, string,
 
 type SnapshotFeatureExtension[C any, S any] struct {
 	DefaultRefreshInterval time.Duration
-	DefaultConfigFunc      func() C
-	ConfigFileFunc         FeatureConfigFileFunc[C]
-	ConfigFlagSpecs        []FeatureConfigFlagSpec[C]
-	RegisterFlagsFunc      func(app *kingpin.Application, ctx FlagContext, config *C)
-	ValidateConfigFunc     func(config C) error
-	ResolveConfigFunc      FeatureConfigResolver[C]
-	RuntimeConfigFunc      func(ctx RuntimeConfigContext[C], config C) []any
-	SnapshotEngineFactory  SnapshotEngineFactory[C, S]
-	DefaultSnapshotEngine  SnapshotEngine[S]
-	NewSnapshotterFunc     func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
-	DefaultSnapshotter     framework.Snapshotter[S]
-	MetricSpecs            []FeatureMetricSpec
-	MetricHandlers         FeatureMetricHandlers[S]
-	MetricsFunc            SnapshotMetricsFunc[S]
-	StatusFunc             func(S) framework.SnapshotStatus
-	ErrorLogFunc           func(*slog.Logger, S)
-	Smoke                  SmokeSpec
-	SmokeFunc              func(ctx SmokeContext[C]) SmokeSpec
+	// SyncRefreshTimeout bounds scrape-triggered synchronous refreshes when the
+	// cache is empty or stale and the background refresh loop is not running. A
+	// zero value preserves the core collector's historical unbounded behavior.
+	SyncRefreshTimeout    time.Duration
+	DefaultConfigFunc     func() C
+	ConfigFileFunc        FeatureConfigFileFunc[C]
+	ConfigFlagSpecs       []FeatureConfigFlagSpec[C]
+	RegisterFlagsFunc     func(app *kingpin.Application, ctx FlagContext, config *C)
+	ValidateConfigFunc    func(config C) error
+	ResolveConfigFunc     FeatureConfigResolver[C]
+	RuntimeConfigFunc     func(ctx RuntimeConfigContext[C], config C) []any
+	SnapshotEngineFactory SnapshotEngineFactory[C, S]
+	DefaultSnapshotEngine SnapshotEngine[S]
+	NewSnapshotterFunc    func(ctx CollectorContext[C]) (framework.Snapshotter[S], error)
+	DefaultSnapshotter    framework.Snapshotter[S]
+	MetricSpecs           []FeatureMetricSpec
+	MetricHandlers        FeatureMetricHandlers[S]
+	MetricsFunc           SnapshotMetricsFunc[S]
+	StatusFunc            func(S) framework.SnapshotStatus
+	ErrorLogFunc          func(*slog.Logger, S)
+	Smoke                 SmokeSpec
+	SmokeFunc             func(ctx SmokeContext[C]) SmokeSpec
 }
 
 func NewSnapshotExtensionFeatureSpec[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) FeatureSpec[C, S] {
+	configState := newSnapshotExtensionConfigState(extension)
 	return NewSnapshotFeatureSpec(SnapshotFeatureSpec[C, S]{
 		Options:                options,
 		DefaultRefreshInterval: extension.DefaultRefreshInterval,
+		SyncRefreshTimeout:     extension.SyncRefreshTimeout,
 		Config:                 defaultFeatureConfig(extension.DefaultConfigFunc),
 		RegisterFlagsFunc:      snapshotExtensionRegisterFlags(extension),
+		PrepareConfigFunc:      configState.prepareConfigFunc(),
 		ValidateConfigFunc:     extension.ValidateConfigFunc,
 		NewSnapshotterFunc:     snapshotExtensionNewSnapshotter(extension),
 		DefaultSnapshotter:     snapshotExtensionDefaultSnapshotter(extension),
 		MetricsFunc:            snapshotExtensionMetricsFunc(extension),
 		StatusFunc:             extension.StatusFunc,
 		ErrorLogFunc:           extension.ErrorLogFunc,
-		RuntimeConfigFunc:      snapshotExtensionRuntimeConfig(extension),
+		RuntimeConfigFunc:      configState.runtimeConfigFunc(),
 		Smoke:                  extension.Smoke,
 		SmokeFunc:              extension.SmokeFunc,
 	})
@@ -93,12 +101,42 @@ func snapshotExtensionMetricsFunc[C any, S any](extension SnapshotFeatureExtensi
 	}
 }
 
+type snapshotExtensionConfigState[C any, S any] struct {
+	extension  SnapshotFeatureExtension[C, S]
+	mu         sync.Mutex
+	configFile string
+	loaded     bool
+	prepared   bool
+}
+
+func newSnapshotExtensionConfigState[C any, S any](extension SnapshotFeatureExtension[C, S]) *snapshotExtensionConfigState[C, S] {
+	return &snapshotExtensionConfigState[C, S]{extension: extension}
+}
+
+func (s *snapshotExtensionConfigState[C, S]) prepareConfigFunc() func(string, C) (C, error) {
+	if s.extension.ConfigFileFunc == nil && s.extension.ResolveConfigFunc == nil {
+		return nil
+	}
+	return func(featureName string, config C) (C, error) {
+		resolved, configFile, loaded, err := ResolveFeatureConfig(featureName, config, s.extension.ConfigFileFunc, s.extension.ResolveConfigFunc)
+		if err != nil {
+			return resolved, err
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.configFile = configFile
+		s.loaded = loaded
+		s.prepared = true
+		return resolved, err
+	}
+}
+
 func DefaultFeatureConfigFile(featureName string) string {
 	name := strings.TrimSpace(featureName)
 	if name == "" {
 		name = "exporter"
 	}
-	return filepath.Join("/etc/prometheus", "prometheus-"+name+"-exporter.yml")
+	return path.Join("/etc/prometheus", "prometheus-"+name+"-exporter.yml")
 }
 
 func LoadFeatureConfigFile(featureName string, explicitPath string, target any) (string, bool, error) {
@@ -162,21 +200,33 @@ func snapshotExtensionRegisterFlags[C any, S any](extension SnapshotFeatureExten
 	}
 }
 
-func snapshotExtensionRuntimeConfig[C any, S any](extension SnapshotFeatureExtension[C, S]) func(RuntimeConfigContext[C]) []any {
+func (s *snapshotExtensionConfigState[C, S]) runtimeConfigFunc() func(RuntimeConfigContext[C]) []any {
 	return func(ctx RuntimeConfigContext[C]) []any {
-		config, configFile, loaded, _ := ResolveFeatureConfig(ctx.FeatureName, ctx.Config, extension.ConfigFileFunc, extension.ResolveConfigFunc)
 		values := make([]any, 0, 4)
-		if extension.ConfigFileFunc != nil {
+		if s.extension.ConfigFileFunc != nil {
+			configFile, loaded, prepared := s.configSnapshot()
+			if !prepared {
+				configFile = featureConfigFile(ctx.Config, s.extension.ConfigFileFunc)
+				if configFile == "" {
+					configFile = DefaultFeatureConfigFile(ctx.FeatureName)
+				}
+			}
 			values = append(values,
 				"config_file", configFile,
 				"config_file_loaded", loaded,
 			)
 		}
-		if extension.RuntimeConfigFunc != nil {
-			values = append(values, extension.RuntimeConfigFunc(ctx, config)...)
+		if s.extension.RuntimeConfigFunc != nil {
+			values = append(values, s.extension.RuntimeConfigFunc(ctx, ctx.Config)...)
 		}
 		return values
 	}
+}
+
+func (s *snapshotExtensionConfigState[C, S]) configSnapshot() (string, bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.configFile, s.loaded, s.prepared
 }
 
 func featureConfigFile[C any](config C, configFileFunc FeatureConfigFileFunc[C]) string {

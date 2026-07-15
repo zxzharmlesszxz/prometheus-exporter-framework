@@ -14,20 +14,6 @@ import (
 func TestFeatureMetricName(t *testing.T) {
 	t.Parallel()
 
-	assertPanicMsg := func(t *testing.T, want string, run func()) {
-		t.Helper()
-		defer func() {
-			if msg := recover(); msg != nil {
-				if got, ok := msg.(string); !ok || got != want {
-					t.Fatalf("panic msg = %q, want %q", got, want)
-				}
-			} else {
-				t.Fatal("panic was not raised")
-			}
-		}()
-		run()
-	}
-
 	tests := []struct {
 		name string
 		spec FeatureMetricSpec
@@ -96,6 +82,44 @@ func TestLoadFeatureMetricDescriptorsPreservesSpecOrder(t *testing.T) {
 			t.Fatalf("Describe()[%d] = %v, want %v", i, got[i], want[i])
 		}
 	}
+}
+
+func TestLoadFeatureMetricDescriptorsRejectsInvalidSpecs(t *testing.T) {
+	t.Parallel()
+
+	assertPanicMsg(t, "metric spec at index 0 has empty ID", func() {
+		LoadFeatureMetricDescriptors("feature", "namespace", []FeatureMetricSpec{
+			{Scope: MetricScopeFeature, Name: "_value", Help: "Demo value."},
+		})
+	})
+	assertPanicMsg(t, "duplicate metric spec ID: value", func() {
+		LoadFeatureMetricDescriptors("feature", "namespace", []FeatureMetricSpec{
+			{ID: "value", Scope: MetricScopeFeature, Name: "_value", Help: "Demo value."},
+			{ID: "value", Scope: MetricScopeFeature, Name: "_other", Help: "Other value."},
+		})
+	})
+	assertPanicMsg(t, `metric spec ID "empty_name" renders empty metric name`, func() {
+		LoadFeatureMetricDescriptors("feature", "namespace", []FeatureMetricSpec{
+			{ID: "empty_name", Scope: MetricScopeAbsolute, Name: "", Help: "Empty name."},
+		})
+	})
+	assertPanicMsg(t, `duplicate metric name "feature_value" for IDs "first" and "second"`, func() {
+		LoadFeatureMetricDescriptors("feature", "namespace", []FeatureMetricSpec{
+			{ID: "first", Scope: MetricScopeFeature, Name: "_value", Help: "First value."},
+			{ID: "second", Scope: MetricScopeFeature, Name: "_value", Help: "Second value."},
+		})
+	})
+}
+
+func TestFeatureMetricDescriptorsGetRejectsUnknownID(t *testing.T) {
+	t.Parallel()
+
+	descriptors := LoadFeatureMetricDescriptors("feature", "namespace", []FeatureMetricSpec{
+		{ID: "value", Scope: MetricScopeFeature, Name: "_value", Help: "Demo value."},
+	})
+	assertPanicMsg(t, "unknown metric descriptor ID: missing", func() {
+		descriptors.Get("missing")
+	})
 }
 
 func TestNewFeatureMetricsLoadsDescriptorsAndDelegatesHandlers(t *testing.T) {
@@ -167,4 +191,18 @@ func TestNewFeatureMetricsLoadsDescriptorsAndDelegatesHandlers(t *testing.T) {
 	if logCalls.Load() != 1 {
 		t.Fatalf("log calls = %d, want 1", logCalls.Load())
 	}
+}
+
+func assertPanicMsg(t *testing.T, want string, run func()) {
+	t.Helper()
+	defer func() {
+		if msg := recover(); msg != nil {
+			if got, ok := msg.(string); !ok || got != want {
+				t.Fatalf("panic msg = %q, want %q", got, want)
+			}
+		} else {
+			t.Fatal("panic was not raised")
+		}
+	}()
+	run()
 }
