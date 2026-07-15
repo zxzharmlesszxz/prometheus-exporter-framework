@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"path"
 	"runtime/debug"
 	"strings"
@@ -14,6 +15,12 @@ const (
 	defaultTelemetryPath  = "/metrics"
 	defaultLandingName    = "exporter_framework"
 	defaultProfilingValue = "false"
+)
+
+var (
+	errMetricNamespaceEmpty      = errors.New("metric namespace is empty")
+	errMetricNamespaceWhitespace = errors.New("metric namespace must not contain leading or trailing whitespace")
+	errMetricNamespaceInvalid    = errors.New("metric namespace must contain only letters, digits, or underscores and must not start with a digit")
 )
 
 type Config struct {
@@ -187,6 +194,26 @@ func sanitizeMetricNamespace(value string) string {
 	return result
 }
 
+func validateMetricNamespace(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return errMetricNamespaceEmpty
+	}
+	if strings.TrimSpace(value) != value {
+		return errMetricNamespaceWhitespace
+	}
+	for i, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r == '_':
+		case i > 0 && r >= '0' && r <= '9':
+		default:
+			return errMetricNamespaceInvalid
+		}
+	}
+	return nil
+}
+
 func defaultListenAddressFromFeatures(features []Feature) string {
 	for _, feature := range features {
 		provider, ok := feature.(DefaultListenAddressProvider)
@@ -194,7 +221,7 @@ func defaultListenAddressFromFeatures(features []Feature) string {
 			continue
 		}
 		listenAddress := strings.TrimSpace(provider.DefaultListenAddress())
-		if listenAddress != "" {
+		if listenAddress != "" && ValidateListenAddress(listenAddress) == nil {
 			return listenAddress
 		}
 	}

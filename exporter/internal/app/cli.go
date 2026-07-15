@@ -1,11 +1,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/promslog"
@@ -20,25 +23,33 @@ type cliConfig struct {
 	runtimeConfig []any
 }
 
-func Main(cfg Config) {
-	if err := RunCLI(cfg, os.Args[1:]); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func Main(cfg Config) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := RunCLIContext(ctx, cfg, os.Args[1:]); err != nil {
+		return err
 	}
+	return nil
 }
 
-func MainFromProject(features ...Feature) {
+func MainFromProject(features ...Feature) error {
 	cfg := ConfigFromProject(features...)
 	cfg.Name = ExecutableName(os.Args, cfg.Name)
-	Main(cfg)
+	if err := Main(cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MainForProject runs a concrete exporter with explicit project metadata.
-func MainForProject(projectName, description string, features ...Feature) {
+func MainForProject(projectName, description string, features ...Feature) error {
 	cfg := ConfigForProject(projectName, features...)
 	cfg.Name = ExecutableName(os.Args, cfg.Name)
 	cfg.Description = description
-	Main(cfg)
+	if err := Main(cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ExecutableName(args []string, fallback string) string {
@@ -60,7 +71,13 @@ func RunCLIFromProject(args []string, features ...Feature) error {
 }
 
 func RunCLI(cfg Config, args []string) error {
-	cfg = cfg.normalized()
+	return RunCLIContext(context.Background(), cfg, args)
+}
+
+func RunCLIContext(ctx context.Context, cfg Config, args []string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	HydrateVersionMetadata()
 
 	parsed, err := parseCLIConfig(cfg, args)
@@ -69,13 +86,16 @@ func RunCLI(cfg Config, args []string) error {
 	}
 
 	logger := promslog.New(parsed.promslogCfg)
-	logStartup(logger, cfg, parsed.runtimeConfig)
+	logStartup(logger, parsed.options.Name, parsed.runtimeConfig)
 
-	return Run(parsed.options, logger)
+	return RunContext(ctx, parsed.options, logger)
 }
 
 func parseCLIConfig(cfg Config, args []string) (cliConfig, error) {
 	cfg = cfg.normalized()
+	if err := ValidateListenAddress(cfg.DefaultListenAddress); err != nil {
+		return cliConfig{}, fmt.Errorf("invalid default listen address %q: %w", cfg.DefaultListenAddress, err)
+	}
 	app := kingpin.New(cfg.Name, cfg.Description)
 	promslogCfg := &promslog.Config{}
 	promflag.AddFlags(app, promslogCfg)
@@ -94,7 +114,7 @@ func parseCLIConfig(cfg Config, args []string) (cliConfig, error) {
 		}
 	}
 
-	app.Version(version.Print(cfg.Namespace))
+	app.Version(version.Print(cfg.Name))
 	app.HelpFlag.Short('h')
 	if _, err := app.Parse(args); err != nil {
 		return cliConfig{}, err
@@ -135,8 +155,8 @@ func runtimeConfigForOptions(opts Options) []any {
 	return runtimeConfig
 }
 
-func logStartup(logger *slog.Logger, cfg Config, runtimeConfig []any) {
-	logger.Info("Starting "+cfg.Name, "version", version.Info())
+func logStartup(logger *slog.Logger, exporterName string, runtimeConfig []any) {
+	logger.Info("Starting "+exporterName, "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
 	logger.Info("Runtime config", runtimeConfig...)
 }

@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/internal/app"
@@ -31,7 +32,10 @@ func InjectedFeatureName() string {
 }
 
 func InjectedMetricNamespace() string {
-	return app.RequireInjectedDefault("injectedMetricNamespace", injectedMetricNamespace)
+	namespace := app.RequireInjectedDefault("injectedMetricNamespace", injectedMetricNamespace)
+	app.RequireMetricNamespace(namespace)
+
+	return namespace
 }
 
 func InjectedDefaultListenAddress() string {
@@ -42,34 +46,98 @@ func InjectedDefaultListenAddress() string {
 }
 
 func InjectedProjectMetadata() ProjectMetadata {
-	return ProjectMetadata{
-		ExporterName:         InjectedExporterName(),
-		ExporterDescription:  InjectedExporterDescription(),
-		FeatureName:          InjectedFeatureName(),
-		MetricNamespace:      InjectedMetricNamespace(),
-		DefaultListenAddress: InjectedDefaultListenAddress(),
+	metadata, err := InjectedProjectMetadataErr()
+	if err != nil {
+		panic(err.Error())
 	}
+	return metadata
+}
+
+func InjectedProjectMetadataErr() (ProjectMetadata, error) {
+	exporterName, err := app.InjectedDefault("injectedExporterName", injectedExporterName)
+	if err != nil {
+		return ProjectMetadata{}, err
+	}
+	description, err := app.InjectedDefault("injectedExporterDescription", injectedExporterDescription)
+	if err != nil {
+		return ProjectMetadata{}, err
+	}
+	featureName, err := app.InjectedDefault("injectedFeatureName", injectedFeatureName)
+	if err != nil {
+		return ProjectMetadata{}, err
+	}
+	metricNamespace, err := app.InjectedDefault("injectedMetricNamespace", injectedMetricNamespace)
+	if err != nil {
+		return ProjectMetadata{}, err
+	}
+	listenAddress, err := app.InjectedDefault("injectedListenAddress", injectedListenAddress)
+	if err != nil {
+		return ProjectMetadata{}, err
+	}
+	metadata := ProjectMetadata{
+		ExporterName:         exporterName,
+		ExporterDescription:  description,
+		FeatureName:          featureName,
+		MetricNamespace:      metricNamespace,
+		DefaultListenAddress: listenAddress,
+	}
+	if err := metadata.Validate(); err != nil {
+		return ProjectMetadata{}, fmt.Errorf("invalid Makefile-injected exporter metadata: %w", err)
+	}
+	return metadata, nil
 }
 
 func ConfigFromInjectedProject(features ...Feature) Config {
-	metadata := InjectedProjectMetadata()
+	cfg, err := ConfigFromInjectedProjectErr(features...)
+	if err != nil {
+		panic(err.Error())
+	}
+	return cfg
+}
 
+func ConfigFromInjectedProjectErr(features ...Feature) (Config, error) {
+	metadata, err := InjectedProjectMetadataErr()
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
 		Name:                 metadata.ExporterName,
 		Namespace:            metadata.MetricNamespace,
 		Description:          metadata.ExporterDescription,
 		DefaultListenAddress: metadata.DefaultListenAddress,
 		Features:             features,
-	}
+	}, nil
 }
 
 func MainFromInjectedProject(features ...Feature) {
-	cfg := ConfigFromInjectedProject(features...)
+	if err := MainFromInjectedProjectErr(features...); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func MainFromInjectedProjectErr(features ...Feature) error {
+	cfg, err := ConfigFromInjectedProjectErr(features...)
+	if err != nil {
+		return err
+	}
 	cfg.Name = app.ExecutableName(os.Args, cfg.Name)
 
-	Main(cfg)
+	return app.Main(cfg)
 }
 
 func ExporterInfoFromInjectedProject(features ...Feature) ExporterInfo {
-	return ExporterInfoFromProjectMetadata(InjectedProjectMetadata(), features...)
+	info, err := ExporterInfoFromInjectedProjectErr(features...)
+	if err != nil {
+		panic(err.Error())
+	}
+	return info
+}
+
+func ExporterInfoFromInjectedProjectErr(features ...Feature) (ExporterInfo, error) {
+	metadata, err := InjectedProjectMetadataErr()
+	if err != nil {
+		return ExporterInfo{}, err
+	}
+	return ExporterInfoFromProjectMetadataErr(metadata, features...)
 }

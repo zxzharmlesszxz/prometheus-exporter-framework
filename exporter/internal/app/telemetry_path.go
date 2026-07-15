@@ -25,6 +25,9 @@ func validateMetricsPath(metricsPath string) error {
 	if strings.ContainsAny(metricsPath, "{}") {
 		return fmt.Errorf("must be a literal URL path, not a ServeMux pattern")
 	}
+	if strings.Contains(metricsPath, "//") {
+		return fmt.Errorf("must not contain double slashes")
+	}
 
 	parsed, err := url.ParseRequestURI(metricsPath)
 	if err != nil {

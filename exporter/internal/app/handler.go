@@ -20,7 +20,13 @@ type HandlerOptions struct {
 }
 
 func NewHandler(opts HandlerOptions) http.Handler {
-	return newHandler(opts.normalized())
+	handler, err := NewHandlerChecked(opts)
+	if err != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		})
+	}
+	return handler
 }
 
 func NewHandlerChecked(opts HandlerOptions) (http.Handler, error) {

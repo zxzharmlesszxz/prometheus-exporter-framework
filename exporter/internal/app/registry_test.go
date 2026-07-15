@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -46,6 +47,34 @@ func TestNewRegistryRegistersBaseAndFeatureCollectors(t *testing.T) {
 	}
 	if !hasMetricFamily(families, "demo_feature_value") {
 		t.Fatal("Gather() missing demo_feature_value")
+	}
+}
+
+func TestNewRegistryContextPassesContextToFeatures(t *testing.T) {
+	t.Parallel()
+
+	type contextKey struct{}
+	ctx := context.WithValue(context.Background(), contextKey{}, "registry-context")
+	feature := featurepkg.CollectorFeature{
+		Name: "demo",
+		RegisterCollectorsFunc: func(featureContext FeatureContext, registry *prometheus.Registry) error {
+			if featureContext.Context != ctx {
+				t.Fatal("FeatureContext.Context did not match NewRegistryContext context")
+			}
+			return featurepkg.RegisterCollectors(registry, newConstCollector("demo_context_value", "Demo context value", 1))
+		},
+	}
+
+	registry, err := NewRegistryContext(ctx, "demo_exporter", slog.New(slog.NewTextHandler(io.Discard, nil)), feature)
+	if err != nil {
+		t.Fatalf("NewRegistryContext() error = %v, want nil", err)
+	}
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v, want nil", err)
+	}
+	if !hasMetricFamily(families, "demo_context_value") {
+		t.Fatal("Gather() missing demo_context_value")
 	}
 }
 
@@ -103,6 +132,33 @@ func TestNewRegistryWrapsFeatureRegistrationError(t *testing.T) {
 	}
 }
 
+func TestNewRegistryRejectsInvalidNamespace(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewRegistry("demo-exporter", nil)
+	if err == nil {
+		t.Fatal("NewRegistry() error = nil, want invalid namespace error")
+	}
+	if !strings.Contains(err.Error(), `invalid metric namespace "demo-exporter"`) {
+		t.Fatalf("NewRegistry() error = %q, want invalid namespace context", err.Error())
+	}
+}
+
+func TestNewRegistryUsesFeatureTypeWhenNameIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("registration failed")
+	feature := unnamedFailingFeature{err: wantErr}
+
+	_, err := NewRegistry("demo_exporter", nil, feature)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("NewRegistry() error = %v, want wrapped %v", err, wantErr)
+	}
+	if !strings.Contains(err.Error(), `register feature "app.unnamedFailingFeature"`) {
+		t.Fatalf("NewRegistry() error = %q, want feature type context", err.Error())
+	}
+}
+
 func TestFeatureNameReturnsEmptyForUnnamedFeature(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +174,16 @@ func (unnamedFeature) RegisterFlags(app *kingpin.Application) {}
 
 func (unnamedFeature) RegisterCollectors(ctx FeatureContext, registry *prometheus.Registry) error {
 	return nil
+}
+
+type unnamedFailingFeature struct {
+	err error
+}
+
+func (unnamedFailingFeature) RegisterFlags(app *kingpin.Application) {}
+
+func (f unnamedFailingFeature) RegisterCollectors(ctx FeatureContext, registry *prometheus.Registry) error {
+	return f.err
 }
 
 func hasMetricFamily(families []*dto.MetricFamily, name string) bool {

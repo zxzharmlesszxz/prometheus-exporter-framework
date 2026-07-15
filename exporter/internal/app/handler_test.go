@@ -78,6 +78,22 @@ func TestNewHandlerCheckedRejectsInvalidMetricsPath(t *testing.T) {
 	}
 }
 
+func TestNewHandlerReturnsErrorHandlerForInvalidMetricsPath(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(HandlerOptions{MetricsPath: "/healthz"})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+	if !strings.Contains(rec.Body.String(), `invalid metrics path "/healthz"`) {
+		t.Fatalf("GET / body = %q, want invalid metrics path error", rec.Body.String())
+	}
+}
+
 func TestHandlerServesHealthz(t *testing.T) {
 	t.Parallel()
 

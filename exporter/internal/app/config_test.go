@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 
 	featurepkg "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/internal/feature"
@@ -81,6 +82,18 @@ func TestConfigForProjectSkipsBlankFeatureListenAddress(t *testing.T) {
 	}
 }
 
+func TestConfigForProjectSkipsInvalidFeatureListenAddress(t *testing.T) {
+	t.Parallel()
+
+	invalid := featurepkg.CollectorFeature{Name: "invalid", DefaultListenAddressValue: "9888"}
+	valid := featurepkg.CollectorFeature{Name: "valid", DefaultListenAddressValue: "127.0.0.1:9777"}
+	cfg := ConfigForProject("prometheus-valid-exporter", invalid, valid)
+
+	if cfg.DefaultListenAddress != "127.0.0.1:9777" {
+		t.Fatalf("DefaultListenAddress = %q, want 127.0.0.1:9777", cfg.DefaultListenAddress)
+	}
+}
+
 func TestExporterNameFromProject(t *testing.T) {
 	t.Parallel()
 
@@ -96,12 +109,45 @@ func TestExporterNameFromProject(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.project, func(t *testing.T) {
 			t.Parallel()
 
 			if got := ExporterNameFromProject(tc.project); got != tc.want {
 				t.Fatalf("ExporterNameFromProject(%q) = %q, want %q", tc.project, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateMetricNamespace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		namespace string
+		wantErr   error
+	}{
+		{name: "simple", namespace: "demo_exporter"},
+		{name: "leading underscore", namespace: "_123_demo_exporter"},
+		{name: "mixed case", namespace: "Demo_Exporter"},
+		{name: "empty", namespace: "", wantErr: errMetricNamespaceEmpty},
+		{name: "blank", namespace: "  ", wantErr: errMetricNamespaceEmpty},
+		{name: "trimmed", namespace: " demo_exporter", wantErr: errMetricNamespaceWhitespace},
+		{name: "hyphen", namespace: "demo-exporter", wantErr: errMetricNamespaceInvalid},
+		{name: "starts with digit", namespace: "123_demo_exporter", wantErr: errMetricNamespaceInvalid},
+		{name: "colon", namespace: "demo:exporter", wantErr: errMetricNamespaceInvalid},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateMetricNamespace(tc.namespace)
+			if tc.wantErr == nil && err != nil {
+				t.Fatalf("validateMetricNamespace(%q) error = %v, want nil", tc.namespace, err)
+			}
+			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
+				t.Fatalf("validateMetricNamespace(%q) error = %v, want %v", tc.namespace, err, tc.wantErr)
 			}
 		})
 	}
@@ -125,7 +171,6 @@ func TestDescriptionFromProject(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.project, func(t *testing.T) {
 			t.Parallel()
 

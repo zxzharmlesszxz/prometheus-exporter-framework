@@ -11,6 +11,10 @@ func ExporterInfoFromProjectMetadata(metadata ProjectMetadata, features ...Featu
 	return app.ExporterInfoFromProjectMetadata(metadata, features...)
 }
 
+func ExporterInfoFromProjectMetadataErr(metadata ProjectMetadata, features ...Feature) (ExporterInfo, error) {
+	return app.ExporterInfoFromProjectMetadataErr(metadata, features...)
+}
+
 func StandardMetricInfo(namespace string) MetricInfo {
 	return app.StandardMetricInfo(namespace)
 }

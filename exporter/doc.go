@@ -24,7 +24,11 @@
 // override the default listen address. Generated exporters usually use
 // Makefile-injected project metadata through ConfigFromInjectedProject and
 // ExporterInfoFromInjectedProject, which keeps project bootstrap code out of
-// concrete repositories.
+// concrete repositories. Error-returning variants such as
+// ConfigFromInjectedProjectErr, InjectedProjectMetadataErr,
+// MainFromInjectedProjectErr, ExporterInfoFromInjectedProjectErr, and
+// ExporterInfoFromProjectMetadataErr are available for bootstrap paths that
+// need controlled error handling instead of panic/exit behavior.
 // SnapshotCollector is available for features that need a background refresh
 // worker, cached scrape-time snapshots, and common collection health metrics.
 // The exporter/featurekit subpackage provides typed lifecycle helpers for
@@ -32,14 +36,16 @@
 // boilerplate in each concrete repository.
 // The exporter/exportertest/featuretest subpackage provides the matching
 // reusable test suite for scaffolded feature packages.
-// FileScrapeMetrics is available for file-backed scrape-time collectors that
-// share mtime, up, valid, scrape duration, and read or parse error metrics.
+// FileScraper and FileScrapeMetrics are available for file-backed scrape-time
+// collectors that share mtime, up, valid, scrape duration, and read or parse
+// error metrics.
 // Use exporter/featurekit.FileScrapeMetricSpecs to keep source-health metric
 // names and descriptors consistent across scaffolded exporters.
 //
 // For programmatic embedding, Run and NewServer construct the same registry and
-// HTTP stack without using process arguments. NewServerChecked and
-// NewHandlerChecked return validation errors for invalid metrics paths. NewHandler
-// is a lower-level constructor for focused tests or custom embedding; callers
-// using it directly are responsible for passing valid handler options.
+// HTTP stack without using process arguments. RunContext and NewRegistryContext
+// let embedding callers pass a lifecycle context to startable collectors.
+// RunCLIContext does the same for CLI-driven startup. NewServerChecked and
+// NewHandlerChecked return validation errors for invalid metrics paths; NewHandler
+// returns an HTTP error handler when validation fails.
 package exporter

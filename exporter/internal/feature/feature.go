@@ -45,6 +45,7 @@ type StartableCollector interface {
 }
 
 type FeatureContext struct {
+	Context      context.Context
 	Logger       *slog.Logger
 	ExporterName string
 	Namespace    string
@@ -95,13 +96,18 @@ func (f CollectorFeature) RuntimeConfig() []any {
 }
 
 func RegisterCollectors(registry *prometheus.Registry, collectors ...prometheus.Collector) error {
+	registered := make([]prometheus.Collector, 0, len(collectors))
 	for _, collector := range collectors {
 		if collector == nil {
 			continue
 		}
 		if err := registry.Register(collector); err != nil {
+			for _, registeredCollector := range registered {
+				registry.Unregister(registeredCollector)
+			}
 			return err
 		}
+		registered = append(registered, collector)
 	}
 	return nil
 }
@@ -113,6 +119,9 @@ func RegisterAndStartCollectors(ctx context.Context, registry *prometheus.Regist
 			continue
 		}
 		if err := registry.Register(collector); err != nil {
+			for _, registeredCollector := range registered {
+				registry.Unregister(registeredCollector)
+			}
 			return err
 		}
 		registered = append(registered, collector)

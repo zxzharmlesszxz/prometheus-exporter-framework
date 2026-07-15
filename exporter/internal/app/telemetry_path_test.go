@@ -21,6 +21,7 @@ func TestValidateMetricsPath(t *testing.T) {
 		{name: "embedded whitespace", metricsPath: "/met rics", wantErr: true},
 		{name: "query string", metricsPath: "/metrics?format=openmetrics", wantErr: true},
 		{name: "fragment", metricsPath: "/metrics#section", wantErr: true},
+		{name: "double slash", metricsPath: "//metrics", wantErr: true},
 		{name: "servemux wildcard", metricsPath: "/metrics/{name}", wantErr: true},
 		{name: "bad escape", metricsPath: "/metrics/%zz", wantErr: true},
 		{name: "health endpoint", metricsPath: "/healthz", wantErr: true},
@@ -30,7 +31,6 @@ func TestValidateMetricsPath(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

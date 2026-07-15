@@ -128,6 +128,33 @@ func TestRegisterCollectorsReturnsDuplicateCollectorError(t *testing.T) {
 	}
 }
 
+func TestRegisterCollectorsRollsBackBatchOnError(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	existing := newConstCollector("existing_feature_value", "Existing feature value", 1)
+	if err := RegisterCollectors(registry, existing); err != nil {
+		t.Fatalf("RegisterCollectors() existing error = %v, want nil", err)
+	}
+
+	first := newConstCollector("batch_feature_value", "Batch feature value", 1)
+	duplicate := newConstCollector("existing_feature_value", "Existing feature value", 2)
+	if err := RegisterCollectors(registry, first, duplicate); err == nil {
+		t.Fatal("RegisterCollectors() error = nil, want duplicate collector error")
+	}
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v, want nil", err)
+	}
+	if hasMetricFamily(families, "batch_feature_value") {
+		t.Fatal("Gather() contains batch_feature_value after rollback")
+	}
+	if !hasMetricFamily(families, "existing_feature_value") {
+		t.Fatal("Gather() missing pre-existing existing_feature_value")
+	}
+}
+
 func TestRegisterAndStartCollectorsRegistersAndStarts(t *testing.T) {
 	t.Parallel()
 
@@ -175,6 +202,10 @@ func TestRegisterAndStartCollectorsDoesNotStartOnRegistrationError(t *testing.T)
 	t.Parallel()
 
 	registry := prometheus.NewRegistry()
+	existing := newConstCollector("existing_startable_value", "Existing startable value", 1)
+	if err := RegisterCollectors(registry, existing); err != nil {
+		t.Fatalf("RegisterCollectors() existing error = %v, want nil", err)
+	}
 	first := &startableTestCollector{
 		collector: newConstCollector("duplicate_startable_value", "Duplicate startable value", 1),
 	}
@@ -191,6 +222,16 @@ func TestRegisterAndStartCollectorsDoesNotStartOnRegistrationError(t *testing.T)
 	}
 	if second.startCount != 0 {
 		t.Fatalf("second startCount = %d, want 0", second.startCount)
+	}
+	families, gatherErr := registry.Gather()
+	if gatherErr != nil {
+		t.Fatalf("Gather() error = %v, want nil", gatherErr)
+	}
+	if hasMetricFamily(families, "duplicate_startable_value") {
+		t.Fatal("Gather() contains duplicate_startable_value after rollback")
+	}
+	if !hasMetricFamily(families, "existing_startable_value") {
+		t.Fatal("Gather() missing pre-existing existing_startable_value")
 	}
 }
 

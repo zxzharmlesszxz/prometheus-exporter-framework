@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/exporter-toolkit/web"
@@ -84,6 +86,8 @@ func TestNewServerCheckedRejectsInvalidMetricsPath(t *testing.T) {
 }
 
 func TestRunInvokesListenAndServeWithConfiguredHandler(t *testing.T) {
+	type contextKey struct{}
+	ctx := context.WithValue(context.Background(), contextKey{}, "run-context")
 	toolkitFlags := &web.FlagConfig{}
 	feature := featurepkg.CollectorFeature{
 		Name: "run",
@@ -96,6 +100,9 @@ func TestRunInvokesListenAndServeWithConfiguredHandler(t *testing.T) {
 			}
 			if ctx.Logger == nil {
 				t.Fatal("FeatureContext.Logger = nil, want logger")
+			}
+			if ctx.Context.Value(contextKey{}) != "run-context" {
+				t.Fatal("FeatureContext.Context missing run context value")
 			}
 			return []prometheus.Collector{
 				newConstCollector("run_feature_value", "Run feature value", 13),
@@ -126,7 +133,7 @@ func TestRunInvokesListenAndServeWithConfiguredHandler(t *testing.T) {
 		return nil
 	})
 
-	err := Run(Options{
+	err := RunContext(ctx, Options{
 		Name:         "run_exporter",
 		Namespace:    "run_exporter",
 		Description:  "Run exporter",
@@ -163,6 +170,38 @@ func TestRunWrapsRegistryErrorsBeforeServing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "create registry: register feature") {
 		t.Fatalf("Run() error = %q, want registry context", err.Error())
+	}
+}
+
+func TestRunContextShutsDownServerWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+
+	stubListenAndServe(t, func(srv *http.Server, flags *web.FlagConfig, logger *slog.Logger) error {
+		shutdown := make(chan struct{})
+		srv.RegisterOnShutdown(func() {
+			close(shutdown)
+		})
+		close(started)
+		<-shutdown
+		return http.ErrServerClosed
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- RunContext(ctx, Options{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}()
+
+	<-started
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("RunContext() error = %v, want nil after context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("RunContext() did not return after context cancellation")
 	}
 }
 

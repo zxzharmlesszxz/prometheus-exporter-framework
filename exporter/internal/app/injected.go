@@ -1,6 +1,11 @@
 package app
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"net"
+	"strings"
+)
 
 type ProjectMetadata struct {
 	ExporterName         string
@@ -37,12 +42,21 @@ type SmokeInfo struct {
 }
 
 func ExporterInfoFromProjectMetadata(metadata ProjectMetadata, features ...Feature) ExporterInfo {
-	metadata.requireValid()
+	info, err := ExporterInfoFromProjectMetadataErr(metadata, features...)
+	if err != nil {
+		panic(err.Error())
+	}
+	return info
+}
+
+func ExporterInfoFromProjectMetadataErr(metadata ProjectMetadata, features ...Feature) (ExporterInfo, error) {
+	if err := metadata.Validate(); err != nil {
+		return ExporterInfo{}, err
+	}
 	metrics := StandardMetricInfo(metadata.MetricNamespace)
 	smoke := SmokeInfo{
 		ForbiddenUsageNames: []string{metadata.MetricNamespace},
 		RenamedExecutable:   "renamed-" + metadata.FeatureName + "-exporter",
-		ServerArgs:          []string{"--" + metadata.FeatureName + ".refresh-interval=100ms"},
 		WantMetrics:         []string{metrics.LastCollectionSuccess + " 1"},
 		RejectMetrics:       []string{metrics.LastCollectionSuccess + " 0"},
 	}
@@ -61,7 +75,7 @@ func ExporterInfoFromProjectMetadata(metadata ProjectMetadata, features ...Featu
 		DefaultListenAddress: metadata.DefaultListenAddress,
 		Metrics:              metrics,
 		Smoke:                smoke,
-	}
+	}, nil
 }
 
 func StandardMetricInfo(namespace string) MetricInfo {
@@ -81,24 +95,65 @@ func appendSmokeSpec(info SmokeInfo, spec SmokeSpec) SmokeInfo {
 	return info
 }
 
-func (m ProjectMetadata) requireValid() {
-	RequireInjectedDefault("ProjectMetadata.ExporterName", m.ExporterName)
-	RequireInjectedDefault("ProjectMetadata.ExporterDescription", m.ExporterDescription)
-	RequireInjectedDefault("ProjectMetadata.FeatureName", m.FeatureName)
-	RequireInjectedDefault("ProjectMetadata.MetricNamespace", m.MetricNamespace)
-	RequireInjectedDefault("ProjectMetadata.DefaultListenAddress", m.DefaultListenAddress)
-	RequireListenAddress(m.DefaultListenAddress)
+func (m ProjectMetadata) Validate() error {
+	if _, err := InjectedDefault("ProjectMetadata.ExporterName", m.ExporterName); err != nil {
+		return err
+	}
+	if _, err := InjectedDefault("ProjectMetadata.ExporterDescription", m.ExporterDescription); err != nil {
+		return err
+	}
+	if _, err := InjectedDefault("ProjectMetadata.FeatureName", m.FeatureName); err != nil {
+		return err
+	}
+	if _, err := InjectedDefault("ProjectMetadata.MetricNamespace", m.MetricNamespace); err != nil {
+		return err
+	}
+	if err := validateMetricNamespace(m.MetricNamespace); err != nil {
+		return fmt.Errorf("invalid metric namespace %q: %w", m.MetricNamespace, err)
+	}
+	if _, err := InjectedDefault("ProjectMetadata.DefaultListenAddress", m.DefaultListenAddress); err != nil {
+		return err
+	}
+	return ValidateListenAddress(m.DefaultListenAddress)
+}
+
+func InjectedDefault(name string, value string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("missing Makefile-injected exporter metadata: %s", name)
+	}
+	return value, nil
 }
 
 func RequireInjectedDefault(name string, value string) string {
-	if strings.TrimSpace(value) == "" {
-		panic("missing Makefile-injected exporter metadata: " + name)
+	resolved, err := InjectedDefault(name, value)
+	if err != nil {
+		panic(err.Error())
 	}
-	return value
+	return resolved
+}
+
+func ValidateListenAddress(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return errors.New("default listen address is empty")
+	}
+	if strings.ContainsAny(value, " \t\r\n") {
+		return errors.New("default listen address must not contain whitespace")
+	}
+	_, port, err := net.SplitHostPort(value)
+	if err != nil || port == "" {
+		return fmt.Errorf("default listen address must be :port or host:port")
+	}
+	return nil
 }
 
 func RequireListenAddress(value string) {
-	if !strings.HasPrefix(value, ":") {
-		panic("invalid Makefile-injected exporter metadata: default listen address must start with :")
+	if err := ValidateListenAddress(value); err != nil {
+		panic("invalid Makefile-injected exporter metadata: " + err.Error())
+	}
+}
+
+func RequireMetricNamespace(value string) {
+	if err := validateMetricNamespace(value); err != nil {
+		panic("invalid Makefile-injected exporter metadata: " + err.Error())
 	}
 }

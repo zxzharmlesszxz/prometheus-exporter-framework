@@ -52,9 +52,6 @@ func TestExporterInfoFromProjectMetadata(t *testing.T) {
 	if !hasTestString(info.Smoke.ForbiddenUsageNames, "demo_exporter") {
 		t.Fatalf("Smoke.ForbiddenUsageNames = %v", info.Smoke.ForbiddenUsageNames)
 	}
-	if !hasTestString(info.Smoke.ServerArgs, "--demo.refresh-interval=100ms") {
-		t.Fatalf("Smoke.ServerArgs = %v", info.Smoke.ServerArgs)
-	}
 	if !hasTestString(info.Smoke.ServerArgs, "--demo.target=example.net") {
 		t.Fatalf("Smoke.ServerArgs = %v", info.Smoke.ServerArgs)
 	}
@@ -72,6 +69,16 @@ func TestExporterInfoFromProjectMetadata(t *testing.T) {
 func TestExporterInfoFromProjectMetadataRequiresValues(t *testing.T) {
 	t.Parallel()
 
+	if _, err := ExporterInfoFromProjectMetadataErr(ProjectMetadata{
+		ExporterName:         "prometheus-demo-exporter",
+		ExporterDescription:  "Prometheus Demo Exporter",
+		FeatureName:          "",
+		MetricNamespace:      "demo_exporter",
+		DefaultListenAddress: ":9888",
+	}); err == nil || !strings.Contains(err.Error(), "ProjectMetadata.FeatureName") {
+		t.Fatalf("ExporterInfoFromProjectMetadataErr() error = %v, want feature name error", err)
+	}
+
 	requirePanicContains(t, "ProjectMetadata.FeatureName", func() {
 		_ = ExporterInfoFromProjectMetadata(ProjectMetadata{
 			ExporterName:         "prometheus-demo-exporter",
@@ -83,10 +90,25 @@ func TestExporterInfoFromProjectMetadataRequiresValues(t *testing.T) {
 	})
 }
 
-func TestExporterInfoFromProjectMetadataRequiresColonListenAddress(t *testing.T) {
+func TestExporterInfoFromProjectMetadataAcceptsHostPortListenAddress(t *testing.T) {
 	t.Parallel()
 
-	requirePanicContains(t, "must start with :", func() {
+	info := ExporterInfoFromProjectMetadata(ProjectMetadata{
+		ExporterName:         "prometheus-demo-exporter",
+		ExporterDescription:  "Prometheus Demo Exporter",
+		FeatureName:          "demo",
+		MetricNamespace:      "demo_exporter",
+		DefaultListenAddress: "127.0.0.1:9888",
+	})
+	if info.DefaultListenAddress != "127.0.0.1:9888" {
+		t.Fatalf("DefaultListenAddress = %q", info.DefaultListenAddress)
+	}
+}
+
+func TestExporterInfoFromProjectMetadataRejectsInvalidListenAddress(t *testing.T) {
+	t.Parallel()
+
+	requirePanicContains(t, "must be :port or host:port", func() {
 		_ = ExporterInfoFromProjectMetadata(ProjectMetadata{
 			ExporterName:         "prometheus-demo-exporter",
 			ExporterDescription:  "Prometheus Demo Exporter",
@@ -95,6 +117,20 @@ func TestExporterInfoFromProjectMetadataRequiresColonListenAddress(t *testing.T)
 			DefaultListenAddress: "9888",
 		})
 	})
+}
+
+func TestExporterInfoFromProjectMetadataRejectsInvalidMetricNamespace(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ExporterInfoFromProjectMetadataErr(ProjectMetadata{
+		ExporterName:         "prometheus-demo-exporter",
+		ExporterDescription:  "Prometheus Demo Exporter",
+		FeatureName:          "demo",
+		MetricNamespace:      "demo-exporter",
+		DefaultListenAddress: ":9888",
+	}); err == nil || !strings.Contains(err.Error(), `invalid metric namespace "demo-exporter"`) {
+		t.Fatalf("ExporterInfoFromProjectMetadataErr() error = %v, want invalid metric namespace error", err)
+	}
 }
 
 type smokeSpecFeature struct {

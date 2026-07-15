@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -135,6 +136,39 @@ func TestRunCLIServesConfiguredHandler(t *testing.T) {
 	}
 }
 
+func TestRunCLIContextPassesContextToFeatures(t *testing.T) {
+	preserveVersionMetadata(t)
+
+	type contextKey struct{}
+	ctx := context.WithValue(context.Background(), contextKey{}, "cli-context")
+	feature := featurepkg.CollectorFeature{
+		Name: "cli_context",
+		RegisterCollectorsFunc: func(featureContext FeatureContext, registry *prometheus.Registry) error {
+			if featureContext.Context.Value(contextKey{}) != "cli-context" {
+				t.Fatal("FeatureContext.Context missing CLI context value")
+			}
+			return featurepkg.RegisterCollectors(registry, newConstCollector("cli_context_value", "CLI context value", 1))
+		},
+	}
+
+	stubListenAndServe(t, func(srv *http.Server, flags *web.FlagConfig, logger *slog.Logger) error {
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /metrics status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		if !strings.Contains(rec.Body.String(), "cli_context_value 1") {
+			t.Fatalf("GET /metrics body missing context metric: %s", rec.Body.String())
+		}
+		return nil
+	})
+
+	if err := RunCLIContext(ctx, Config{Name: "cli_context_exporter", Features: []Feature{feature}}, []string{"--log.level=error"}); err != nil {
+		t.Fatalf("RunCLIContext() error = %v, want nil", err)
+	}
+}
+
 func TestRunCLIReturnsInvalidTelemetryPathError(t *testing.T) {
 	preserveVersionMetadata(t)
 
@@ -144,6 +178,18 @@ func TestRunCLIReturnsInvalidTelemetryPathError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `invalid --web.telemetry-path "metrics"`) {
 		t.Fatalf("RunCLI() error = %q, want telemetry path context", err.Error())
+	}
+}
+
+func TestRunCLIReturnsInvalidDefaultListenAddressError(t *testing.T) {
+	preserveVersionMetadata(t)
+
+	err := RunCLI(Config{Name: "cli_exporter", DefaultListenAddress: "9888"}, nil)
+	if err == nil {
+		t.Fatal("RunCLI() error = nil, want invalid default listen address error")
+	}
+	if !strings.Contains(err.Error(), `invalid default listen address "9888"`) {
+		t.Fatalf("RunCLI() error = %q, want default listen address context", err.Error())
 	}
 }
 
@@ -224,7 +270,9 @@ func TestMainFromProjectUsesExecutableNameAndModuleMetadata(t *testing.T) {
 		return nil
 	})
 
-	MainFromProject(feature)
+	if err := MainFromProject(feature); err != nil {
+		t.Fatalf("MainFromProject() error = %v", err)
+	}
 
 	if !called {
 		t.Fatal("listenAndServe was not called")
@@ -290,12 +338,14 @@ func TestMainForProject(t *testing.T) {
 		return nil
 	})
 
-	MainForProject(
+	if err := MainForProject(
 		"prometheus-custom-exporter",
 		"Prometheus Custom Exporter",
 		feature,
 		extraFeature,
-	)
+	); err != nil {
+		t.Fatalf("MainForProject() error = %v", err)
+	}
 
 	if !called {
 		t.Fatal("listenAndServe was not called")
@@ -342,7 +392,6 @@ func TestExecutableName(t *testing.T) {
 			want:     "exporter_framework",
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

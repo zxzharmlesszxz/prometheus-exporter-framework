@@ -1,7 +1,15 @@
 package main
 
-import "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
+import (
+	"fmt"
+	"os"
+
+	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
+)
 
 func main() {
-	exporter.MainFromProject()
+	if err := exporter.MainFromProjectErr(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

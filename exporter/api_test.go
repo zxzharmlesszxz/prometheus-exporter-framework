@@ -54,10 +54,37 @@ func TestFacadeConfigAndMetadataHelpers(t *testing.T) {
 	if !hasString(info.Smoke.WantMetrics, "facade_exporter_custom_metric 1") {
 		t.Fatalf("ExporterInfoFromProjectMetadata().Smoke.WantMetrics = %v", info.Smoke.WantMetrics)
 	}
+
+	info, err := exporter.ExporterInfoFromProjectMetadataErr(exporter.ProjectMetadata{
+		ExporterName:         "prometheus-facade-exporter",
+		ExporterDescription:  "Prometheus Facade Exporter",
+		FeatureName:          "facade",
+		MetricNamespace:      "facade_exporter",
+		DefaultListenAddress: "127.0.0.1:9123",
+	})
+	if err != nil {
+		t.Fatalf("ExporterInfoFromProjectMetadataErr() error = %v", err)
+	}
+	if info.DefaultListenAddress != "127.0.0.1:9123" {
+		t.Fatalf("ExporterInfoFromProjectMetadataErr().DefaultListenAddress = %q", info.DefaultListenAddress)
+	}
+	if _, err := exporter.ExporterInfoFromProjectMetadataErr(exporter.ProjectMetadata{
+		ExporterName:         "prometheus-facade-exporter",
+		ExporterDescription:  "Prometheus Facade Exporter",
+		FeatureName:          "facade",
+		MetricNamespace:      "facade_exporter",
+		DefaultListenAddress: "9123",
+	}); err == nil {
+		t.Fatal("ExporterInfoFromProjectMetadataErr() error = nil, want invalid listen address error")
+	}
 }
 
 func TestFacadeCLIAndServerErrors(t *testing.T) {
 	preserveVersionMetadata(t)
+
+	if err := exporter.MainErr(exporter.Config{Name: "facade_exporter", DefaultListenAddress: "9888"}); err == nil {
+		t.Fatal("MainErr() error = nil, want invalid default listen address error")
+	}
 
 	if err := exporter.RunCLIFromProject([]string{"--not-a-real-flag"}); err == nil {
 		t.Fatal("RunCLIFromProject() error = nil, want parse error")
@@ -68,9 +95,19 @@ func TestFacadeCLIAndServerErrors(t *testing.T) {
 		t.Fatalf("RunCLI() error = %v, want telemetry path error", err)
 	}
 
+	err = exporter.RunCLIContext(context.Background(), exporter.Config{Name: "facade_exporter"}, []string{"--web.telemetry-path=metrics"})
+	if err == nil || !strings.Contains(err.Error(), "invalid --web.telemetry-path") {
+		t.Fatalf("RunCLIContext() error = %v, want telemetry path error", err)
+	}
+
 	err = exporter.Run(exporter.Options{MetricsPath: "metrics"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "invalid metrics path") {
 		t.Fatalf("Run() error = %v, want metrics path error", err)
+	}
+
+	err = exporter.RunContext(context.Background(), exporter.Options{MetricsPath: "metrics"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid metrics path") {
+		t.Fatalf("RunContext() error = %v, want metrics path error", err)
 	}
 
 	requirePanic(t, func() {
@@ -121,12 +158,18 @@ func TestFacadeHTTPConstructors(t *testing.T) {
 func TestFacadeCollectorLifecycleHelpers(t *testing.T) {
 	t.Parallel()
 
+	if registry, err := exporter.NewRegistryContext(context.Background(), "facade_context_exporter", nil); err != nil {
+		t.Fatalf("NewRegistryContext() error = %v, want nil", err)
+	} else if registry == nil {
+		t.Fatal("NewRegistryContext() registry = nil, want registry")
+	}
+
 	registry := prometheus.NewRegistry()
 	collector := &startableCollector{
 		collector: constCollector("facade_startable_value", 3),
 	}
 
-	if err := exporter.RegisterAndStartCollectors(context.TODO(), registry, collector); err != nil {
+	if err := exporter.RegisterAndStartCollectors(context.Background(), registry, collector); err != nil {
 		t.Fatalf("RegisterAndStartCollectors() error = %v", err)
 	}
 	if !collector.started {
@@ -241,14 +284,43 @@ func TestFacadeInjectedWrappersPanicWithoutMetadata(t *testing.T) {
 		{name: "InjectedDefaultListenAddress", fn: func() { _ = exporter.InjectedDefaultListenAddress() }},
 		{name: "InjectedProjectMetadata", fn: func() { _ = exporter.InjectedProjectMetadata() }},
 		{name: "ConfigFromInjectedProject", fn: func() { _ = exporter.ConfigFromInjectedProject() }},
-		{name: "MainFromInjectedProject", fn: func() { exporter.MainFromInjectedProject() }},
 		{name: "ExporterInfoFromInjectedProject", fn: func() { _ = exporter.ExporterInfoFromInjectedProject() }},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			requirePanic(t, tc.fn)
+		})
+	}
+}
+
+func TestFacadeInjectedErrWrappersReturnErrorWithoutMetadata(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{name: "InjectedProjectMetadataErr", fn: func() error {
+			_, err := exporter.InjectedProjectMetadataErr()
+			return err
+		}},
+		{name: "ConfigFromInjectedProjectErr", fn: func() error {
+			_, err := exporter.ConfigFromInjectedProjectErr()
+			return err
+		}},
+		{name: "MainFromInjectedProjectErr", fn: func() error {
+			return exporter.MainFromInjectedProjectErr()
+		}},
+		{name: "ExporterInfoFromInjectedProjectErr", fn: func() error {
+			_, err := exporter.ExporterInfoFromInjectedProjectErr()
+			return err
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.fn(); err == nil {
+				t.Fatal("error = nil, want missing injected metadata error")
+			}
 		})
 	}
 }

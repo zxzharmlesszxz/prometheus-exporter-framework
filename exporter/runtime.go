@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -12,10 +13,18 @@ func NewRegistry(namespace string, logger *slog.Logger, features ...Feature) (*p
 	return app.NewRegistry(namespace, logger, features...)
 }
 
+func NewRegistryContext(ctx context.Context, namespace string, logger *slog.Logger, features ...Feature) (*prometheus.Registry, error) {
+	return app.NewRegistryContext(ctx, namespace, logger, features...)
+}
+
 type Options = app.Options
 
 func Run(opts Options, logger *slog.Logger) error {
 	return app.Run(opts, logger)
+}
+
+func RunContext(ctx context.Context, opts Options, logger *slog.Logger) error {
+	return app.RunContext(ctx, opts, logger)
 }
 
 func MustRun(opts Options, logger *slog.Logger) {

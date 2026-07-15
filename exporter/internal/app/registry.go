@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -10,8 +11,18 @@ import (
 )
 
 func NewRegistry(namespace string, logger *slog.Logger, features ...Feature) (*prometheus.Registry, error) {
+	return NewRegistryContext(context.Background(), namespace, logger, features...)
+}
+
+func NewRegistryContext(ctx context.Context, namespace string, logger *slog.Logger, features ...Feature) (*prometheus.Registry, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if namespace == "" {
 		namespace = defaultExporterName
+	}
+	if err := validateMetricNamespace(namespace); err != nil {
+		return nil, fmt.Errorf("invalid metric namespace %q: %w", namespace, err)
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -34,13 +45,14 @@ func NewRegistry(namespace string, logger *slog.Logger, features ...Feature) (*p
 			featureLogger = featureLogger.With("feature", name)
 		}
 
-		ctx := FeatureContext{
+		featureContext := FeatureContext{
+			Context:      ctx,
 			Logger:       featureLogger,
 			ExporterName: namespace,
 			Namespace:    namespace,
 		}
-		if err := feature.RegisterCollectors(ctx, registry); err != nil {
-			return nil, fmt.Errorf("register feature %q: %w", featureName(feature), err)
+		if err := feature.RegisterCollectors(featureContext, registry); err != nil {
+			return nil, fmt.Errorf("register feature %q: %w", featureLogName(feature), err)
 		}
 	}
 
@@ -53,4 +65,11 @@ func featureName(feature Feature) string {
 		return ""
 	}
 	return named.FeatureName()
+}
+
+func featureLogName(feature Feature) string {
+	if name := featureName(feature); name != "" {
+		return name
+	}
+	return fmt.Sprintf("%T", feature)
 }

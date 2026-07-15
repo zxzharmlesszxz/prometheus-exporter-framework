@@ -1,13 +1,18 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/exporter-toolkit/web"
 )
+
+const defaultShutdownTimeout = 5 * time.Second
 
 type Options struct {
 	Name         string
@@ -38,6 +43,13 @@ func (o Options) normalized() Options {
 }
 
 func Run(opts Options, logger *slog.Logger) error {
+	return RunContext(context.Background(), opts, logger)
+}
+
+func RunContext(ctx context.Context, opts Options, logger *slog.Logger) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	opts = opts.normalized()
 	if err := validateMetricsPath(opts.MetricsPath); err != nil {
 		return fmt.Errorf("invalid metrics path %q: %w", opts.MetricsPath, err)
@@ -46,11 +58,12 @@ func Run(opts Options, logger *slog.Logger) error {
 		logger = slog.Default()
 	}
 
-	logger = logger.With("component", "server")
-	registry, err := NewRegistry(opts.Namespace, logger.With("component", "collector"), opts.Features...)
+	registry, err := NewRegistryContext(ctx, opts.Namespace, logger.With("component", "collector"), opts.Features...)
 	if err != nil {
 		return fmt.Errorf("create registry: %w", err)
 	}
+
+	logger = logger.With("component", "server")
 
 	handler := NewHandler(HandlerOptions{
 		Name:        opts.Name,
@@ -61,7 +74,29 @@ func Run(opts Options, logger *slog.Logger) error {
 	})
 
 	srv := &http.Server{Handler: handler}
-	return listenAndServe(srv, opts.ToolkitFlags, logger)
+	return listenAndServeContext(ctx, srv, opts.ToolkitFlags, logger)
+}
+
+func listenAndServeContext(ctx context.Context, srv *http.Server, flags *web.FlagConfig, logger *slog.Logger) error {
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+			defer cancel()
+			if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Warn("shutting down server", "err", err)
+			}
+		case <-done:
+		}
+	}()
+
+	err := listenAndServe(srv, flags, logger)
+	close(done)
+	if errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
+		return nil
+	}
+	return err
 }
 
 func MustRun(opts Options, logger *slog.Logger) {
