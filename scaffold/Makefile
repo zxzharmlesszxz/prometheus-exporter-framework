@@ -1,5 +1,7 @@
 GO ?= go
 GOFMT ?= gofmt
+FRAMEWORK_MODULE ?= github.com/zxzharmlesszxz/prometheus-exporter-framework
+FRAMEWORK_REPLACE ?= $(abspath ..)
 
 PROJECT_NAME ?=
 GO_MODULE ?=
@@ -28,8 +30,12 @@ DRIFT_ALLOW_DIRTY := $(if $(filter 1 true yes,$(ALLOW_DIRTY)),--allow-dirty,)
 DRIFT_FILE_ARGS := $(foreach file,$(FILE),--file "$(file)")
 DRIFT_SYMBOL_DIFF := $(if $(filter 1 true yes,$(SYMBOL_DIFF)),--symbol-diff,)
 DRIFT_ALL_FILES := $(if $(filter 1 true yes,$(ALL_FILES)),--all-files,)
+DOCKER_SMOKE_METRIC_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_METRIC)),,--docker-smoke-metric "$(DOCKER_SMOKE_METRIC)")
+DOCKER_SMOKE_RUN_OPTIONS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_RUN_OPTIONS)),,--docker-smoke-run-options "$(DOCKER_SMOKE_RUN_OPTIONS)")
+DOCKER_SMOKE_EXPORTER_ARGS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_EXPORTER_ARGS)),,--docker-smoke-exporter-args "$(DOCKER_SMOKE_EXPORTER_ARGS)")
+DOCKER_SMOKE_EXTRA_METRICS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_EXTRA_METRICS)),,--docker-smoke-extra-metrics "$(DOCKER_SMOKE_EXTRA_METRICS)")
 
-.PHONY: help scripts-check tools-check symbol-diff-check render-check check new-exporter drift-check drift-check-all drift-sync drift-list-files clean require-project-name require-target-dir
+.PHONY: help scripts-check tools-check symbol-diff-check render-check check check-local check-pinned new-exporter drift-check drift-check-all drift-sync drift-list-files clean require-project-name require-target-dir
 
 help: ## Show available make targets.
 	@printf "\033[33mUsage:\033[0m\n"
@@ -46,7 +52,7 @@ tools-check: ## Check local tools required by generated Go checks.
 symbol-diff-check: tools-check ## Check the Go symbol-level diff helper.
 	@$(GO) run ./scripts/go-symbol-diff.go -- template/internal/__FEATURE_NAME__/feature_snapshotter_ext.go template/internal/__FEATURE_NAME__/feature_snapshotter_ext.go >/dev/null
 
-render-check: scripts-check symbol-diff-check ## Render a demo exporter and run its Go-only checks.
+render-check: scripts-check symbol-diff-check ## Render a demo exporter against the local framework checkout and run its Go-only checks.
 	@set -e; \
 	tmp="$$(mktemp -d)"; \
 	trap 'rm -rf "$$tmp"' EXIT; \
@@ -66,12 +72,32 @@ render-check: scripts-check symbol-diff-check ## Render a demo exporter and run 
 	fi; \
 	scripts/scaffold-drift.sh --target-dir "$$tmp"; \
 	cd "$$tmp"; \
+	if [ -n "$(FRAMEWORK_REPLACE)" ]; then \
+		printf "\033[31mFramework source: local replace -> %s\033[0m\n" "$(FRAMEWORK_REPLACE)"; \
+		$(GO) mod edit -replace "$(FRAMEWORK_MODULE)=$(FRAMEWORK_REPLACE)"; \
+	else \
+		printf "\033[31mFramework source: pinned dependency from scaffold/template/go.mod\033[0m\n"; \
+	fi; \
 	$(GO) mod tidy; \
+	$(GO) list -m "$(FRAMEWORK_MODULE)"; \
+	modcheck="$$tmp/.modcheck"; \
+	mkdir -p "$$modcheck"; \
+	cp go.mod "$$modcheck/go.mod"; \
+	cp go.sum "$$modcheck/go.sum"; \
+	$(GO) mod tidy; \
+	diff -u "$$modcheck/go.mod" go.mod; \
+	diff -u "$$modcheck/go.sum" go.sum; \
 	$(MAKE) go-check GO="$(GO)" GOFMT="$(GOFMT)"
 
-check: render-check ## Run scaffold checks used by CI.
+check: render-check ## Run scaffold self-checks against the local framework checkout.
 
-new-exporter: require-project-name require-target-dir ## Render a new exporter. Set PROJECT_NAME and optionally TARGET_DIR/GO_MODULE/PROJECT_DESC/FEATURE_NAME/FEATURE_NAMESPACE/METRIC_NAMESPACE/DEFAULT_PORT.
+check-local: ## Run scaffold checks against the local framework checkout.
+	@$(MAKE) --no-print-directory check FRAMEWORK_REPLACE="$(abspath ..)" GO="$(GO)" GOFMT="$(GOFMT)"
+
+check-pinned: ## Run scaffold checks against template/go.mod's pinned framework dependency.
+	@$(MAKE) --no-print-directory check FRAMEWORK_REPLACE= GO="$(GO)" GOFMT="$(GOFMT)"
+
+new-exporter: require-project-name require-target-dir ## Render a new exporter. Set PROJECT_NAME and optionally TARGET_DIR/GO_MODULE/PROJECT_DESC/FEATURE_NAME/FEATURE_NAMESPACE/METRIC_NAMESPACE/DEFAULT_PORT/DOCKER_SMOKE_*.
 	@scripts/render.sh \
 		--project-name "$(PROJECT_NAME)" \
 		$(if $(GO_MODULE),--module "$(GO_MODULE)",) \
@@ -81,6 +107,10 @@ new-exporter: require-project-name require-target-dir ## Render a new exporter. 
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \
+		$(DOCKER_SMOKE_METRIC_ARG) \
+		$(DOCKER_SMOKE_RUN_OPTIONS_ARG) \
+		$(DOCKER_SMOKE_EXPORTER_ARGS_ARG) \
+		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
 		--target-dir "$(TARGET_DIR)"
 
 drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR, optionally FILE, ALL_FILES=1, and SYMBOL_DIFF=1.
@@ -94,6 +124,10 @@ drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR,
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \
+		$(DOCKER_SMOKE_METRIC_ARG) \
+		$(DOCKER_SMOKE_RUN_OPTIONS_ARG) \
+		$(DOCKER_SMOKE_EXPORTER_ARGS_ARG) \
+		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
 		$(DRIFT_SYMBOL_DIFF) \
 		$(DRIFT_ALL_FILES) \
 		$(DRIFT_FILE_ARGS)
@@ -114,6 +148,10 @@ drift-sync: require-target-dir ## Sync scaffold-managed files into an existing e
 		$(if $(METRIC_NAMESPACE),--namespace "$(METRIC_NAMESPACE)",) \
 		$(if $(DEFAULT_PORT),--port "$(DEFAULT_PORT)",) \
 		$(if $(FEATURE_CONFIG_FILE),--feature-config-file "$(FEATURE_CONFIG_FILE)",) \
+		$(DOCKER_SMOKE_METRIC_ARG) \
+		$(DOCKER_SMOKE_RUN_OPTIONS_ARG) \
+		$(DOCKER_SMOKE_EXPORTER_ARGS_ARG) \
+		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
 		$(DRIFT_FILE_ARGS)
 
 drift-list-files: ## List the default scaffold-managed files used by drift-check/drift-sync.

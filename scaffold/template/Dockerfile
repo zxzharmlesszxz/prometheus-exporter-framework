@@ -22,7 +22,11 @@ FROM debian:bookworm-slim
 
 ARG PROJECT_NAME
 
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /src/dist/${PROJECT_NAME} /usr/local/bin/exporter
+
+EXPOSE __DEFAULT_PORT__
 
 USER nobody
 

@@ -67,7 +67,11 @@ Optional interfaces:
 The helper `CollectorFeature` can be used when a feature only needs callbacks instead of a dedicated type.
 The helper `SnapshotCollector` can be used when a feature needs a typed snapshot cache, background refresh loop, and common collection health metrics.
 The `exporter/featurekit` subpackage can be used by scaffolded exporters that want a typed feature spec instead of hand-written flag, runtime-config, collector-registration, and collector-startup boilerplate.
-The package also exposes small value/lifecycle helpers (`BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScrapeMetrics`, `NormalizeDuration`, and `RegisterAndStartCollectors`) plus the `exporter/exportertest` and `exporter/exportertest/featuretest` packages for shared exporter test assertions and scaffolded feature test suites.
+The package also exposes small value/lifecycle helpers (`BoolFloat`,
+`UnixTimestamp`, `FileMTimeSeconds`, `FileScraper`, `FileScrapeMetrics`,
+`FileScrapeResult`, `NormalizeDuration`, and `RegisterAndStartCollectors`) plus
+the `exporter/exportertest` and `exporter/exportertest/featuretest` packages for
+shared exporter test assertions and scaffolded feature test suites.
 
 ## Common HTTP Semantics
 
@@ -90,25 +94,63 @@ Domain-source health belongs in feature collectors.
 
 The public extension surface is:
 
-- `Main`, `MainFromProject`, `MainForProject`, `RunCLI`, and `RunCLIFromProject`
-- `Config`, `ConfigFromProject`, and `ConfigForProject`
-- `Options`, `Run`, `MustRun`, `NewServer`, and `NewServerChecked`
+- `Main`, `MainErr`, `MainFromProject`, `MainFromProjectErr`,
+  `MainForProject`, `MainForProjectErr`, `MainFromInjectedProject`, and
+  `MainFromInjectedProjectErr`
+- `RunCLI`, `RunCLIContext`, and `RunCLIFromProject`
+- `Config`, `ConfigFromProject`, `ConfigForProject`,
+  `ConfigFromInjectedProject`, and `ConfigFromInjectedProjectErr`
+- `Options`, `Run`, `RunContext`, `MustRun`, `NewServer`, and
+  `NewServerChecked`
 - `HandlerOptions`, `NewHandler`, and `NewHandlerChecked`
 - `Feature`, `FeatureContext`, `CollectorFeature`, and `StartableCollector`
-- `Snapshotter`, `SnapshotStatus`, `SnapshotCollectorOptions`, `SnapshotCollector`, and `DefaultSnapshotRefreshInterval`
-- `BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScrapeMetrics`, `Uint64Counter`, and `NormalizeDuration`
+- `Snapshotter`, `SnapshotStatus`, `SnapshotCollectorOptions`,
+  `SnapshotCollector`, `NewSnapshotCollector`, and
+  `DefaultSnapshotRefreshInterval`
+- `BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScraper`,
+  `FileScrapeMetrics`, `FileScrapeResult`, `FileReadFunc`, `Uint64Counter`,
+  and `NormalizeDuration`
 - `NamedFeature`, `RuntimeConfigReporter`, and `DefaultListenAddressProvider`
-- `NewRegistry`, `RegisterCollectors`, and `RegisterAndStartCollectors`
+- `SmokeSpecProvider` and `SmokeSpec`
+- `NewRegistry`, `NewRegistryContext`, `RegisterCollectors`, and
+  `RegisterAndStartCollectors`
+- `InjectedProjectMetadata`, `InjectedProjectMetadataErr`,
+  `InjectedExporterName`, `InjectedExporterDescription`,
+  `InjectedFeatureName`, `InjectedMetricNamespace`, and
+  `InjectedDefaultListenAddress`
+- `ExporterInfoFromProjectMetadata`, `ExporterInfoFromProjectMetadataErr`,
+  `ExporterInfoFromInjectedProject`, `ExporterInfoFromInjectedProjectErr`,
+  `StandardMetricInfo`, `ProjectMetadata`, `ExporterInfo`, `MetricInfo`, and
+  `SmokeInfo`
 - `ExporterNameFromProject` and `DescriptionFromProject`
 - `HydrateVersionMetadata` and `ResolveVersionMetadata`
 
-The `exporter/featurekit` subpackage is public support for generated exporters and exposes `FeatureSpec`, `Feature`, `SmokeSpec`, `SmokeContext`, `SnapshotCollectorOptions`, `ResolveSnapshotCollectorOptions`, `NewSnapshotCollector`, config flag spec helpers, and feature metric spec helpers.
+The `exporter/featurekit` subpackage is public support for generated exporters
+and exposes `FeatureSpec`, `Feature`, `FeatureDefaults`, `FeatureContract`,
+`SmokeSpec`, `SmokeContext`, `SnapshotCollectorOptions`,
+`ResolveSnapshotCollectorOptions`, `NewSnapshotCollector`, config-file and
+config-flag helpers, snapshot extension helpers, feature metric spec helpers,
+file scrape metric helpers, and the exported methods on those types.
+Public API golden checks also track exported fields and interface methods for
+types defined directly in public packages, plus type alias targets and exported
+members exposed through root facade aliases to local internal types. The shared
+AST walker lives in `exporter/internal/publicapitest`; package-level
+`public_api_test.go` files should stay thin wrappers around it.
 
-The `exporter/exportertest` subpackage is public test support for downstream exporters. The `exporter/exportertest/featuretest` subpackage owns the reusable `FeatureTestSuite` for scaffolded feature packages; concrete exporters pass feature-specific snapshot/config/metric hooks into that suite and register only domain-specific test cases locally.
+The `exporter/exportertest` subpackage is public test support for downstream
+exporters. Its `adaptertest`, `featuretest`, and `smoketest` subpackages are
+also public because scaffolded exporters import them directly. The
+`exporter/exportertest/featuretest` subpackage owns the reusable
+`FeatureTestSuite` for scaffolded feature packages; concrete exporters pass
+feature-specific snapshot/config/metric hooks into that suite and register only
+domain-specific test cases locally.
 
 `NewHandler` is a lower-level constructor for embedding or focused tests.
 Production entrypoints should prefer `RunCLI`, `Run`, or `NewServerChecked`, which apply option normalization and telemetry-path validation before constructing handlers.
 `NewServer` keeps its original no-error signature and normalizes options, but callers that need explicit errors instead of `http.ServeMux` panics should use `NewHandlerChecked` or `NewServerChecked`.
+Bootstrap helpers without an `Err` suffix preserve legacy panic or exit
+behavior where applicable. New integration code that needs controlled failure
+handling should prefer the matching `...Err` or context-aware variant.
 
 Concrete exporters should treat unexported functions and types as internal implementation details.
 Breaking changes to the exported extension surface should be released with a major version bump.
@@ -141,5 +183,9 @@ For example, a feature can:
 - serve cached metrics after a failed refresh
 - omit business metrics when its source is unreadable
 - increment read or parse error counters
+
+For file-backed source-health helpers, `*_up` means the source was readable.
+Parse or domain-validity failures should keep `*_up = 1` and report invalid data
+through a separate `*_valid = 0` metric.
 
 The framework does not impose one policy because the existing exporters use different failure semantics.

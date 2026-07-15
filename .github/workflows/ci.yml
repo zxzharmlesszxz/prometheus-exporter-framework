@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -60,8 +60,14 @@ jobs:
       - name: Test with coverage
         run: make coverage-check GO=go COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
 
+      - name: Binary smoke test
+        run: make smoke GO=go
+
       - name: Test with race detector
         run: make test-race GO=go
+
+      - name: Check public API
+        run: make public-api-check GO=go
 
       - name: Upload coverage reports
         if: always()

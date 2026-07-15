@@ -3925,7 +3925,7 @@
                         "layout": {
                           "kind": "AutoGridLayout",
                           "spec": {
-                            "maxColumnCount": 3,
+                            "maxColumnCount": 2,
                             "columnWidthMode": "standard",
                             "rowHeightMode": "standard",
                             "items": [
@@ -4263,12 +4263,12 @@
             "group": "prometheus",
             "kind": "DataQuery",
             "spec": {
-              "query": "label_values(up, job)",
+              "query": "label_values(up{job=~\"^(prometheus[_-])?__FEATURE_NAME__[_-]exporter$\"}, job)",
               "refId": "StandardVariableQuery"
             },
             "version": "v0"
           },
-          "definition": "label_values(up, job)",
+          "definition": "label_values(up{job=~\"^(prometheus[_-])?__FEATURE_NAME__[_-]exporter$\"}, job)",
           "refresh": "onDashboardLoad",
           "regex": "",
           "current": {
@@ -4278,7 +4278,7 @@
           "options": [],
           "multi": true,
           "includeAll": true,
-          "allValue": ".*__FEATURE_NAME__.*",
+          "allValue": "^(prometheus[_-])?__FEATURE_NAME__[_-]exporter$",
           "sort": "alphabeticalAsc",
           "hide": "dontHide",
           "skipUrlSync": false,

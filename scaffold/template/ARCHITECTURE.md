@@ -36,7 +36,8 @@ them through the scaffold sync flow only.
 
 ## Data Flow
 
-1. `cmd/scaffold_main.go` delegates to `internal/exporter.Main()`, which runs `framework.MainFromInjectedProject(...)`.
+1. `cmd/scaffold_main.go` delegates to `internal/exporter.Main()`, which reads
+   Makefile-injected metadata and then runs `framework.MainFromInjectedProject(...)`.
 2. `internal/exporter` creates the concrete feature through
    `internal/__FEATURE_NAME__.NewFeature(...)` and framework-injected feature
    metadata.

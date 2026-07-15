@@ -11,19 +11,17 @@ import (
 )
 
 func NewDefaultSnapshotEngine() featurekit.SnapshotEngine[Snapshot] {
-	engine, err := newSnapshotEngine(NewDefaultConfig())
-	if err != nil {
-		panic(err)
-	}
-	return engine
+	return newSnapshotEngine(NewDefaultConfig())
 }
 
 func NewSnapshotEngine(ctx featurekit.CollectorContext[Config]) (featurekit.SnapshotEngine[Snapshot], error) {
+	// Keep rendered exporters compatible with framework versions that did not
+	// prepare feature config before constructing snapshotters.
 	config, _, _, err := ResolveFeatureConfig(ctx.FeatureName, ctx.Config)
 	if err != nil {
 		return nil, err
 	}
-	return newSnapshotEngine(config)
+	return newSnapshotEngine(config), nil
 }
 
 func FeatureSnapshotStatus(snapshot Snapshot) framework.SnapshotStatus {
@@ -33,11 +31,11 @@ func FeatureSnapshotStatus(snapshot Snapshot) framework.SnapshotStatus {
 	}
 }
 
-func newSnapshotEngine(_ Config) (featurekit.SnapshotEngine[Snapshot], error) {
+func newSnapshotEngine(_ Config) featurekit.SnapshotEngine[Snapshot] {
 	checker := __FEATURE_NAME__check.NewChecker()
 	return featurekit.SnapshotEngineFunc[Snapshot](func(ctx context.Context, now time.Time) Snapshot {
 		return Snapshot{
 			__FEATURE_NAME__: checker.Snapshot(ctx, now),
 		}
-	}), nil
+	})
 }

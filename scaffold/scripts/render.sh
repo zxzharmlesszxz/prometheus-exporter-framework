@@ -7,7 +7,7 @@ usage() {
 Usage:
   scripts/render.sh \
     --project-name prometheus-demo-exporter \
-    --module prometheus-demo-exporter \
+    --module github.com/example/prometheus-demo-exporter \
     --description "Prometheus Demo Exporter" \
     --feature-name demo \
     --feature-namespace demo \
@@ -25,7 +25,7 @@ Required:
   --target-dir
 
 Optional:
-  --module       Defaults to --project-name.
+  --module       Go module path. Defaults to --project-name for local throwaway renders.
   --description Defaults to --project-name.
   --feature-name Defaults to project name without prometheus- prefix and -exporter suffix, with '-' replaced by '_'.
   --feature-namespace
@@ -59,57 +59,77 @@ docker_smoke_exporter_args='--$(FEATURE_NAME).config-file=$(FEATURE_CONFIG_CONTA
 docker_smoke_extra_metrics=""
 target_dir=""
 
+require_value() {
+  if [ "$#" -lt 2 ]; then
+    echo "$1 requires a value" >&2
+    exit 1
+  fi
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --project-name)
+      require_value "$@"
       project_name="${2:-}"
       shift 2
       ;;
     --module)
+      require_value "$@"
       go_module="${2:-}"
       shift 2
       ;;
     --description)
+      require_value "$@"
       project_desc="${2:-}"
       shift 2
       ;;
     --feature-name)
+      require_value "$@"
       feature_name="${2:-}"
       shift 2
       ;;
     --feature-namespace)
+      require_value "$@"
       feature_namespace="${2:-}"
       shift 2
       ;;
     --namespace)
+      require_value "$@"
       metric_namespace="${2:-}"
       shift 2
       ;;
     --port)
+      require_value "$@"
       default_port="${2:-}"
       shift 2
       ;;
     --feature-config-file)
+      require_value "$@"
       feature_config_file="${2:-}"
       shift 2
       ;;
     --docker-smoke-metric)
+      require_value "$@"
       docker_smoke_metric="${2:-}"
       shift 2
       ;;
     --docker-smoke-run-options)
+      require_value "$@"
       docker_smoke_run_options="${2:-}"
       shift 2
       ;;
     --docker-smoke-exporter-args)
+      require_value "$@"
       docker_smoke_exporter_args="${2:-}"
       shift 2
       ;;
     --docker-smoke-extra-metrics)
+      require_value "$@"
       docker_smoke_extra_metrics="${2:-}"
       shift 2
       ;;
     --target-dir)
+      require_value "$@"
       target_dir="${2:-}"
       shift 2
       ;;

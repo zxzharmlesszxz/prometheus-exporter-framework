@@ -118,7 +118,41 @@ jobs:
         run: make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
 
       - name: Run scaffold checks
-        run: make scaffold-compatibility
+        run: make scaffold-local-check GO=go GOFMT=gofmt
+
+      - name: Run scaffold checks against pinned dependency
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          template_framework_version="$(
+            awk '
+              $1 == "require" && $2 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" {
+                print $3
+                exit
+              }
+              $1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" {
+                print $2
+                exit
+              }
+            ' scaffold/template/go.mod
+          )"
+          if [ -z "$template_framework_version" ]; then
+            echo "scaffold/template/go.mod does not require prometheus-exporter-framework"
+            exit 1
+          fi
+          if [ "$template_framework_version" = "$VERSION" ]; then
+            echo "Skipping pinned scaffold check because scaffold/template/go.mod points at unreleased $VERSION"
+            exit 0
+          fi
+          make -C scaffold check-pinned GO=go GOFMT=gofmt
+
+      - name: Verify workspace is clean
+        run: |
+          status="$(git status --porcelain --untracked-files=all -- ':!coverage.out' ':!coverage.txt' ':!dist/')"
+          if [ -n "$status" ]; then
+            echo "$status"
+            exit 1
+          fi
 
       - name: Create annotated tag
         if: steps.version_state.outputs.tag_exists != 'true'
@@ -141,7 +175,7 @@ jobs:
     steps:
       - name: Prepare Alpine
         shell: sh
-        run: apk add --no-cache bash github-cli
+        run: apk add --no-cache bash ca-certificates github-cli
 
       - name: Create GitHub release
         env:

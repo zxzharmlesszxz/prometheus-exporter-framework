@@ -1,6 +1,7 @@
 package __FEATURE_NAME__
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest/featuretest"
+	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/featurekit"
 )
 
 func TestFeatureContract(t *testing.T) {
@@ -50,6 +52,12 @@ func RegisterFeatureTests(suite *FeatureTestSuite) {
 	})
 	suite.Register("smoke_spec_includes_skeleton_metric", func(t *testing.T) {
 		testSmokeSpecIncludesSkeletonMetric(t, suite)
+	})
+	suite.Register("default_snapshot_engine_collects_snapshot", func(t *testing.T) {
+		testDefaultSnapshotEngineCollectsSnapshot(t)
+	})
+	suite.Register("snapshot_engine_reports_config_error", func(t *testing.T) {
+		testSnapshotEngineReportsConfigError(t)
 	})
 }
 
@@ -100,5 +108,28 @@ func testSmokeSpecIncludesSkeletonMetric(t *testing.T, suite *FeatureTestSuite) 
 	want := suite.MetricName(testFeatureName, "", metricExampleValue) + " 1"
 	if !featuretest.HasString(spec.WantMetrics, want) {
 		t.Fatalf("SmokeSpec().WantMetrics = %v, want %q", spec.WantMetrics, want)
+	}
+}
+
+func testDefaultSnapshotEngineCollectsSnapshot(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	snapshot := NewDefaultSnapshotEngine().Snapshot(context.Background(), now)
+	if !snapshot.__FEATURE_NAME__.Success {
+		t.Fatal("Snapshot().Success = false, want true")
+	}
+	if !snapshot.__FEATURE_NAME__.AttemptTime.Equal(now) {
+		t.Fatalf("Snapshot().AttemptTime = %v, want %v", snapshot.__FEATURE_NAME__.AttemptTime, now)
+	}
+}
+
+func testSnapshotEngineReportsConfigError(t *testing.T) {
+	_, err := NewSnapshotEngine(featurekit.CollectorContext[Config]{
+		FeatureName: testFeatureName,
+		Config: Config{
+			ConfigFile: t.TempDir() + "/missing.yml",
+		},
+	})
+	if err == nil {
+		t.Fatal("NewSnapshotEngine() error = nil, want config file error")
 	}
 }

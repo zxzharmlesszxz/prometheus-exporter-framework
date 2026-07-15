@@ -32,14 +32,16 @@ exporter metric namespace.
 ### `<metric_namespace>_last_collection_timestamp_seconds`
 
 - Type: gauge
-- Value: Unix timestamp of the last feature data collection attempt
+- Value: Unix timestamp, including fractional seconds, of the last feature data
+  collection attempt
 - Labels: none
 - Notes: updates on both successful and failed collection attempts
 
 ### `<metric_namespace>_last_successful_collection_timestamp_seconds`
 
 - Type: gauge
-- Value: Unix timestamp of the last successful feature data collection
+- Value: Unix timestamp, including fractional seconds, of the last successful
+  feature data collection
 - Labels: none
 - Notes: remains unchanged while collection attempts fail
 
@@ -52,6 +54,9 @@ exporter metric namespace.
   - measures exporter refresh-loop work
   - distinct from Prometheus `scrape_duration_seconds`
   - emitted for both background refreshes and scrape-triggered refreshes
+  - Prometheus scrape health and scrape timing should come from Prometheus-side
+    `scrape_*` series for the exporter target, not from duplicated
+    exporter-owned metrics
 
 ## Source Health Pattern
 
@@ -76,13 +81,16 @@ For a feature namespace `<feature_namespace>` and source name `<source>`, use:
   - `1` if the source produced valid domain data during the last collection
   - `0` if the source data was invalid or incomplete
 - Labels: exporter-defined, commonly `source` or `path`
-- Notes: the concrete exporter defines validity semantics
+- Notes:
+  - the concrete exporter defines validity semantics
+  - parse or domain-validity failures should leave `*_up = 1` when the source
+    was readable and report invalid data through `*_valid = 0`
 
 ### `<feature_namespace>_<source>_mtime_seconds`
 
 - Type: gauge
-- Value: Unix timestamp of the source file modification time, or `0` when
-  unavailable
+- Value: Unix timestamp, including fractional seconds, of the source file
+  modification time, or `0` when unavailable
 - Labels: exporter-defined, commonly `source` or `path`
 
 ### `<feature_namespace>_<source>_scrape_duration_seconds`
@@ -94,13 +102,13 @@ For a feature namespace `<feature_namespace>` and source name `<source>`, use:
 ### `<feature_namespace>_<source>_read_errors_total`
 
 - Type: counter
-- Value: total number of source read errors
+- Value: cumulative total number of source read errors
 - Labels: exporter-defined, commonly `source` or `path`
 
 ### `<feature_namespace>_<source>_parse_errors_total`
 
 - Type: counter
-- Value: total number of source parse or validity errors
+- Value: cumulative total number of source parse or validity errors
 - Labels: exporter-defined, commonly `source` or `path`
 
 ## Go Runtime Metrics

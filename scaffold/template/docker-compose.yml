@@ -6,14 +6,14 @@ services:
         PROJECT_NAME: ${PROJECT_NAME:-exporter}
         LDFLAGS: ${LDFLAGS:-}
     command:
-      - --web.listen-address=:${COMPOSE_EXPORTER_PORT:-9888}
+      - --web.listen-address=:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}
       - --${FEATURE_NAME}.config-file=${FEATURE_CONFIG_CONTAINER_PATH:-/etc/prometheus/__FEATURE_CONFIG_FILE__}
       - --${FEATURE_NAME}.refresh-interval=30s
     configs:
       - source: feature_config
         target: ${FEATURE_CONFIG_CONTAINER_PATH:-/etc/prometheus/__FEATURE_CONFIG_FILE__}
     ports:
-      - "${COMPOSE_EXPORTER_PORT:-9888}:${COMPOSE_EXPORTER_PORT:-9888}"
+      - "${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}"
 
   prometheus:
     image: prom/prometheus:latest
@@ -67,7 +67,7 @@ configs:
         - job_name: ${FEATURE_NAME}_exporter
           static_configs:
             - targets:
-                - exporter:${COMPOSE_EXPORTER_PORT:-9888}
+                - exporter:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}
   grafana_prometheus_datasource:
     content: |
       apiVersion: 1

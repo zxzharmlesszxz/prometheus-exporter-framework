@@ -1,9 +1,9 @@
-# prometheus-exporter-scaffold
+# prometheus-exporter-framework scaffold
 
-Scaffold repository for creating concrete Prometheus exporters from
+Scaffold directory for creating concrete Prometheus exporters from
 `prometheus-exporter-framework`.
 
-This repository owns generated-repository shape:
+This directory owns generated-repository shape:
 
 - project layout
 - placeholder exporter feature
@@ -14,9 +14,8 @@ This repository owns generated-repository shape:
 - Dependabot starter configuration
 - rendering script
 
-The framework itself lives in
-`github.com/zxzharmlesszxz/prometheus-exporter-framework`. Keep exporter runtime
-behavior in the framework and keep generated-project boilerplate here.
+Exporter runtime behavior belongs in the framework packages; generated-project
+boilerplate belongs here.
 
 ## Render A New Exporter
 
@@ -44,6 +43,14 @@ make check
 `FEATURE_NAME`, `FEATURE_NAMESPACE`, `METRIC_NAMESPACE`, `PROJECT_DESC`,
 `GO_MODULE`, and `DEFAULT_PORT` have defaults, but passing them explicitly keeps
 the generated repository predictable.
+Use a canonical importable `GO_MODULE` such as
+`github.com/example/prometheus-demo-exporter` for real repositories; the default
+module value is only meant for local throwaway renders.
+Set `DOCKER_SMOKE_METRIC`, `DOCKER_SMOKE_RUN_OPTIONS`,
+`DOCKER_SMOKE_EXPORTER_ARGS`, and `DOCKER_SMOKE_EXTRA_METRICS` when the generated
+exporter needs domain-specific Docker smoke-test wiring. Set
+`DOCKER_SMOKE_RUN_OPTIONS=` or `DOCKER_SMOKE_EXPORTER_ARGS=` explicitly to render
+an empty value instead of the scaffold default.
 
 Metric namespaces are intentionally split:
 
@@ -55,9 +62,10 @@ Metric namespaces are intentionally split:
   example `demo_exporter_last_collection_success`.
 
 `TARGET_DIR` defaults to `rendered/$(PROJECT_NAME)` for local experiments.
-Run `make check` in this scaffold repository to render a demo exporter, check
-for unresolved placeholders, verify scaffold drift, and run generated Go-only
-checks.
+Run `make check` in this scaffold repository to render a demo exporter, add a
+temporary `replace` to the local framework checkout, check for unresolved
+placeholders, verify scaffold drift, verify `go mod tidy` idempotence, and run
+generated Go-only checks.
 
 The generated `cmd/scaffold_main.go` is intentionally stable. Project metadata is
 injected by Makefile linker flags from `Makefile.mk`, while the concrete feature
@@ -69,13 +77,27 @@ package owns domain behavior.
 `prometheus-exporter-framework` version used by newly generated exporters.
 
 Before publishing a new framework tag, update `template/go.mod` to the tag that
-will be released. Compatibility checks render a demo exporter, add a temporary
-`replace` directive to this local framework checkout, and run the generated
-exporter's Go-only checks. This lets scaffold code target the next framework tag
-before that tag exists in the module proxy.
+will be released. From the repository root, run `make scaffold-local-check`, or
+run `make check-local` inside `scaffold/`, to render a demo exporter, add a
+temporary `replace` directive to this local framework checkout, verify generated
+module files after `go mod tidy`, and run the generated exporter's Go-only
+checks. The target also fails if any `__PLACEHOLDER__` values remain in rendered
+files. This lets scaffold code target the next framework tag before that tag
+exists in the module proxy.
 
-This repository's own CI also renders a demo exporter and runs its Go-only
-checks, so scaffold pull requests validate the generated code path directly.
+This repository's own CI uses the root `make scaffold-local-check` path through
+the compatibility workflow, so local and CI scaffold checks validate the same
+generated code path against the current framework checkout. The old
+`make scaffold-compatibility` target remains as an alias for local checkout
+validation.
+
+When `template/go.mod` still points at the latest published framework tag, also
+run `make scaffold-pinned-check` from the repository root, or
+`make check-pinned` inside `scaffold/`, before release. That verifies the
+rendered exporter against the pinned published dependency instead of the local
+checkout. Keep `internal/__FEATURE_NAME__/feature_snapshotter_ext.go`
+resolving feature config in `NewSnapshotEngine` until the pinned framework tag
+prepares feature config before constructing snapshotters.
 
 ## Update An Existing Exporter
 

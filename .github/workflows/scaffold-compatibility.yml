@@ -8,14 +8,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-
-env:
-  FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
 
 defaults:
   run:
@@ -39,37 +36,5 @@ jobs:
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Render demo exporter
-        run: |
-          make -C scaffold new-exporter \
-            PROJECT_NAME=prometheus-demo-exporter \
-            GO_MODULE=github.com/example/prometheus-demo-exporter \
-            PROJECT_DESC="Prometheus Demo Exporter" \
-            FEATURE_NAME=demo \
-            METRIC_NAMESPACE=demo_exporter \
-            DEFAULT_PORT=9888 \
-            TARGET_DIR="$RUNNER_TEMP/prometheus-demo-exporter"
-
-      - name: Use current framework checkout
-        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
-        run: |
-          go mod edit -replace "$FRAMEWORK_MODULE=$GITHUB_WORKSPACE"
-          go mod tidy
-
-      - name: Verify generated exporter module files
-        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
-        run: |
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-
-          cp go.mod "$tmp/go.mod"
-          cp go.sum "$tmp/go.sum"
-
-          go mod tidy
-          diff -u "$tmp/go.mod" go.mod
-          diff -u "$tmp/go.sum" go.sum
-
-      - name: Check generated exporter
-        working-directory: ${{ runner.temp }}/prometheus-demo-exporter
-        run: |
-          make go-check GO=go GOFMT=gofmt
+      - name: Run scaffold compatibility
+        run: make scaffold-compatibility GO=go GOFMT=gofmt

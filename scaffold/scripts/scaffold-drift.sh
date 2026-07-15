@@ -130,6 +130,10 @@ docker_smoke_metric=""
 docker_smoke_run_options=""
 docker_smoke_exporter_args=""
 docker_smoke_extra_metrics=""
+docker_smoke_metric_set=0
+docker_smoke_run_options_set=0
+docker_smoke_exporter_args_set=0
+docker_smoke_extra_metrics_set=0
 custom_files=()
 symbol_diff=0
 all_files=0
@@ -201,6 +205,13 @@ obsolete_files=(
   "internal/__FEATURE_NAME__/spec.go"
 )
 
+require_value() {
+  if [[ $# -lt 2 ]]; then
+    echo "$1 requires a value" >&2
+    exit 1
+  fi
+}
+
 companion_obsolete_files_for_managed_file() {
   local file="$1"
   case "$file" in
@@ -229,6 +240,7 @@ companion_obsolete_files_for_managed_file() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target-dir|--exporter-dir)
+      require_value "$@"
       target_dir="${2:-}"
       shift 2
       ;;
@@ -245,54 +257,71 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --project-name)
+      require_value "$@"
       project_name="${2:-}"
       shift 2
       ;;
     --module)
+      require_value "$@"
       go_module="${2:-}"
       shift 2
       ;;
     --description)
+      require_value "$@"
       project_desc="${2:-}"
       shift 2
       ;;
     --feature-name)
+      require_value "$@"
       feature_name="${2:-}"
       shift 2
       ;;
     --feature-namespace)
+      require_value "$@"
       feature_namespace="${2:-}"
       shift 2
       ;;
     --namespace)
+      require_value "$@"
       metric_namespace="${2:-}"
       shift 2
       ;;
     --port)
+      require_value "$@"
       default_port="${2:-}"
       shift 2
       ;;
     --feature-config-file)
+      require_value "$@"
       feature_config_file="${2:-}"
       shift 2
       ;;
     --docker-smoke-metric)
+      require_value "$@"
       docker_smoke_metric="${2:-}"
+      docker_smoke_metric_set=1
       shift 2
       ;;
     --docker-smoke-run-options)
+      require_value "$@"
       docker_smoke_run_options="${2:-}"
+      docker_smoke_run_options_set=1
       shift 2
       ;;
     --docker-smoke-exporter-args)
+      require_value "$@"
       docker_smoke_exporter_args="${2:-}"
+      docker_smoke_exporter_args_set=1
       shift 2
       ;;
     --docker-smoke-extra-metrics)
+      require_value "$@"
       docker_smoke_extra_metrics="${2:-}"
+      docker_smoke_extra_metrics_set=1
       shift 2
       ;;
     --file)
+      require_value "$@"
       custom_files+=("${2:-}")
       shift 2
       ;;
@@ -708,6 +737,20 @@ detect_makefile_mk_var() {
   ' "$target_dir/Makefile.mk"
 }
 
+makefile_mk_var_defined() {
+  local name="$1"
+  [[ -f "$target_dir/Makefile.mk" ]] || return 1
+  awk -v name="$name" -F '\\?=' '
+    $1 ~ "^[[:space:]]*" name "[[:space:]]*$" {
+      found = 1
+      exit
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$target_dir/Makefile.mk"
+}
+
 detect_docker_smoke_metric() {
   detect_makefile_mk_var "DOCKER_SMOKE_METRIC"
 }
@@ -1034,20 +1077,39 @@ fi
 if [[ -z "$feature_config_file" ]]; then
   feature_config_file="${project_name}.yml"
 fi
-if [[ -z "$docker_smoke_metric" ]]; then
+if [[ "$docker_smoke_metric_set" -eq 0 && -z "$docker_smoke_metric" ]]; then
   docker_smoke_metric="$(detect_docker_smoke_metric)"
+  if makefile_mk_var_defined "DOCKER_SMOKE_METRIC"; then
+    docker_smoke_metric_set=1
+  fi
 fi
 if [[ -z "$docker_smoke_metric" ]]; then
   docker_smoke_metric='$(FEATURE_NAMESPACE)_example_value 1'
+  docker_smoke_metric_set=1
 fi
-if [[ -z "$docker_smoke_run_options" ]]; then
+if [[ "$docker_smoke_run_options_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_RUN_OPTIONS"; then
   docker_smoke_run_options="$(detect_makefile_mk_var "DOCKER_SMOKE_RUN_OPTIONS")"
+  docker_smoke_run_options_set=1
 fi
-if [[ -z "$docker_smoke_exporter_args" ]]; then
+if [[ "$docker_smoke_run_options_set" -eq 0 ]]; then
+  docker_smoke_run_options='-v "$(CURDIR)/$(FEATURE_CONFIG_PATH):$(FEATURE_CONFIG_CONTAINER_PATH):ro"'
+  docker_smoke_run_options_set=1
+fi
+if [[ "$docker_smoke_exporter_args_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_EXPORTER_ARGS"; then
   docker_smoke_exporter_args="$(detect_makefile_mk_var "DOCKER_SMOKE_EXPORTER_ARGS")"
+  docker_smoke_exporter_args_set=1
 fi
-if [[ -z "$docker_smoke_extra_metrics" ]]; then
+if [[ "$docker_smoke_exporter_args_set" -eq 0 ]]; then
+  docker_smoke_exporter_args='--$(FEATURE_NAME).config-file=$(FEATURE_CONFIG_CONTAINER_PATH)'
+  docker_smoke_exporter_args_set=1
+fi
+if [[ "$docker_smoke_extra_metrics_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_EXTRA_METRICS"; then
   docker_smoke_extra_metrics="$(detect_makefile_mk_var "DOCKER_SMOKE_EXTRA_METRICS")"
+  docker_smoke_extra_metrics_set=1
+fi
+if [[ "$docker_smoke_extra_metrics_set" -eq 0 ]]; then
+  docker_smoke_extra_metrics=""
+  docker_smoke_extra_metrics_set=1
 fi
 
 resolved_managed_files=()
@@ -1071,20 +1133,31 @@ fi
 rendered_dir="$(mktemp -d)"
 trap 'rm -rf "$rendered_dir"' EXIT
 
-"$repo_dir/scripts/render.sh" \
-  --project-name "$project_name" \
-  --module "${go_module:-$project_name}" \
-  --description "$project_desc" \
-  --feature-name "$feature_name" \
-  --feature-namespace "$feature_namespace" \
-  --namespace "$metric_namespace" \
-  --port "$default_port" \
-  --feature-config-file "$feature_config_file" \
-  --docker-smoke-metric "$docker_smoke_metric" \
-  --docker-smoke-run-options "$docker_smoke_run_options" \
-  --docker-smoke-exporter-args "$docker_smoke_exporter_args" \
-  --docker-smoke-extra-metrics "$docker_smoke_extra_metrics" \
-  --target-dir "$rendered_dir" >/dev/null
+render_args=(
+  --project-name "$project_name"
+  --module "${go_module:-$project_name}"
+  --description "$project_desc"
+  --feature-name "$feature_name"
+  --feature-namespace "$feature_namespace"
+  --namespace "$metric_namespace"
+  --port "$default_port"
+  --feature-config-file "$feature_config_file"
+)
+if [[ "$docker_smoke_metric_set" -eq 1 ]]; then
+  render_args+=(--docker-smoke-metric "$docker_smoke_metric")
+fi
+if [[ "$docker_smoke_run_options_set" -eq 1 ]]; then
+  render_args+=(--docker-smoke-run-options "$docker_smoke_run_options")
+fi
+if [[ "$docker_smoke_exporter_args_set" -eq 1 ]]; then
+  render_args+=(--docker-smoke-exporter-args "$docker_smoke_exporter_args")
+fi
+if [[ "$docker_smoke_extra_metrics_set" -eq 1 ]]; then
+  render_args+=(--docker-smoke-extra-metrics "$docker_smoke_extra_metrics")
+fi
+render_args+=(--target-dir "$rendered_dir")
+
+"$repo_dir/scripts/render.sh" "${render_args[@]}" >/dev/null
 
 format_rendered_go() {
   local gofmt_bin="${GOFMT:-gofmt}"

@@ -81,21 +81,18 @@ check: fmt-check vet staticcheck coverage-check smoke test-race public-api-check
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
 
-.PHONY: scaffold-compatibility
-scaffold-compatibility: ## Render a demo exporter from local scaffold and run its Go-only checks.
-	@set -e; \
-	tmp="$$(mktemp -d)"; \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	target="$$tmp/prometheus-demo-exporter"; \
-	$(MAKE) -C scaffold new-exporter \
-		PROJECT_NAME=prometheus-demo-exporter \
-		GO_MODULE=github.com/example/prometheus-demo-exporter \
-		PROJECT_DESC="Prometheus Demo Exporter" \
-		FEATURE_NAME=demo \
-		METRIC_NAMESPACE=demo_exporter \
-		DEFAULT_PORT=9888 \
-		TARGET_DIR="$$target"; \
-	cd "$$target"; \
-	$(GO) mod edit -replace github.com/zxzharmlesszxz/prometheus-exporter-framework="$(CURDIR)"; \
-	$(GO) mod tidy; \
-	$(MAKE) go-check GO="$(GO)" GOFMT="$(GOFMT)"
+.PHONY: scaffold-compatibility scaffold-local-check scaffold-pinned-check
+scaffold-compatibility: scaffold-local-check ## Alias for scaffold-local-check.
+
+scaffold-local-check: ## Check rendered scaffold against this local framework checkout.
+	@$(MAKE) -C scaffold check \
+		CHECK_GO_MODULE=github.com/example/prometheus-demo-exporter \
+		FRAMEWORK_REPLACE="$(CURDIR)" \
+		GO="$(GO)" \
+		GOFMT="$(GOFMT)"
+
+scaffold-pinned-check: ## Check rendered scaffold against template/go.mod's pinned framework dependency.
+	@$(MAKE) -C scaffold check-pinned \
+		CHECK_GO_MODULE=github.com/example/prometheus-demo-exporter \
+		GO="$(GO)" \
+		GOFMT="$(GOFMT)"

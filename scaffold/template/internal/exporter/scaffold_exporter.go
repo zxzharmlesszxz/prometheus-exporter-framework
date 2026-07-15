@@ -13,8 +13,13 @@ func NewFeature() framework.Feature {
 	return feature.NewFeature(featurekit.SpecOptions{FeatureName: framework.InjectedFeatureName()})
 }
 
+func newFeature(featureName string) framework.Feature {
+	return feature.NewFeature(featurekit.SpecOptions{FeatureName: featureName})
+}
+
 func Main() {
-	mainFromInjectedProject(NewFeature())
+	metadata := framework.InjectedProjectMetadata()
+	mainFromInjectedProject(newFeature(metadata.FeatureName))
 }
 
 func ExporterInfo() framework.ExporterInfo {

@@ -30,17 +30,19 @@ If no `--__FEATURE_NAME__.config-file` value is provided, `/etc/prometheus/prome
 The generated `examples/__FEATURE_CONFIG_FILE__` file is an empty but valid feature config for the skeleton exporter.
 Make, Compose, and smoke defaults use `FEATURE_CONFIG_FILE`, which defaults to `__FEATURE_CONFIG_FILE__`, and pass that path explicitly with `--__FEATURE_NAME__.config-file=...`.
 Runtime config can always be overridden with another `--__FEATURE_NAME__.config-file=...` value.
+If that config file cannot be parsed or resolved, startup runtime config logs
+include `config_error` with the concrete failure.
 Data refresh runs through the framework snapshot collector in a background worker; scrapes return the last collected snapshot.
 
 ## Metrics
 
 Example output:
 
-```code
+```text
 __FEATURE_NAMESPACE___example_value 1
 __METRIC_NAMESPACE___last_collection_success 1
-__METRIC_NAMESPACE___last_collection_timestamp_seconds 1742812800
-__METRIC_NAMESPACE___last_successful_collection_timestamp_seconds 1742812800
+__METRIC_NAMESPACE___last_collection_timestamp_seconds 1742812800.123
+__METRIC_NAMESPACE___last_successful_collection_timestamp_seconds 1742812800.123
 ```
 
 Domain metrics use the `FEATURE_NAMESPACE` prefix, while framework-owned
@@ -139,6 +141,10 @@ make docker-build VERSION=v0.1.0 DOCKER_IMAGE=__PROJECT_NAME__:v0.1.0
 make docker-push DOCKER_IMAGE=__PROJECT_NAME__:v0.1.0
 make docker-buildx-push VERSION=v0.1.0 DOCKER_IMAGE=registry.example.com/__PROJECT_NAME__:v0.1.0
 ```
+
+The generated CI Docker publish job passes release metadata to
+`docker/build-push-action` with explicit build args. It does not rely on `.git`
+being available inside the Docker build context.
 
 ## Architecture
 

@@ -30,10 +30,11 @@ jobs:
 
     steps:
       - name: Prepare Alpine
+        shell: sh
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -51,10 +52,11 @@ jobs:
 
     steps:
       - name: Prepare Alpine
+        shell: sh
         run: apk add --no-cache bash ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -70,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -96,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -132,7 +134,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -150,6 +152,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare Docker Build Metadata
+        id: docker-meta
+        shell: bash
+        run: |
+          revision="${GITHUB_SHA::7}"
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ldflags="$(
+            cat <<EOF
+          -s -w
+          -X 'github.com/prometheus/common/version.Version=${GITHUB_REF_NAME}'
+          -X 'github.com/prometheus/common/version.Branch=${GITHUB_REF_NAME}'
+          -X 'github.com/prometheus/common/version.Revision=${revision}'
+          -X 'github.com/prometheus/common/version.BuildUser=github-actions'
+          -X 'github.com/prometheus/common/version.BuildDate=${build_date}'
+          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedExporterName=__PROJECT_NAME__'
+          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedExporterDescription=__PROJECT_DESC__'
+          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedFeatureName=__FEATURE_NAME__'
+          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedMetricNamespace=__METRIC_NAMESPACE__'
+          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedListenAddress=:__DEFAULT_PORT__'
+          -X '__GO_MODULE__/internal/__FEATURE_NAME__.DefaultFeatureConfigFileName=__FEATURE_CONFIG_FILE__'
+          EOF
+          )"
+          ldflags="$(printf '%s\n' "${ldflags}" | sed 's/^[[:space:]]*//' | tr '\n' ' ')"
+
+          {
+            echo "revision=${revision}"
+            echo "build_date=${build_date}"
+            echo "ldflags=${ldflags}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v7
         with:
@@ -160,3 +192,6 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          build-args: |
+            PROJECT_NAME=__PROJECT_NAME__
+            LDFLAGS=${{ steps.docker-meta.outputs.ldflags }}
