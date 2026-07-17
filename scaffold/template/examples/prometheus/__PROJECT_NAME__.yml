@@ -2,7 +2,7 @@ groups:
   - name: __PROJECT_NAME__
     rules:
       - alert: __FEATURE_NAME__ExporterDown
-        expr: up{job="__FEATURE_NAME___exporter"} == 0
+        expr: up{job=~"^(prometheus[_-])?__FEATURE_NAME__[_-]exporter$"} == 0
         for: 5m
         labels:
           severity: warning
@@ -11,7 +11,7 @@ groups:
           description: Prometheus cannot scrape __PROJECT_NAME__.
 
       - alert: __FEATURE_NAME__ExporterCollectionFailed
-        expr: __METRIC_NAMESPACE___last_collection_success{job="__FEATURE_NAME___exporter"} == 0
+        expr: __METRIC_NAMESPACE___last_collection_success{job=~"^(prometheus[_-])?__FEATURE_NAME__[_-]exporter$"} == 0
         for: 10m
         labels:
           severity: warning
