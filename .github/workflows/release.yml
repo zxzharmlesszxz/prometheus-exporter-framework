@@ -118,7 +118,7 @@ jobs:
         run: make check GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD"
 
       - name: Run scaffold checks
-        run: make scaffold-local-check GO=go GOFMT=gofmt
+        run: make scaffold-check-local GO=go GOFMT=gofmt
 
       - name: Run scaffold checks against pinned dependency
         env:
@@ -144,7 +144,7 @@ jobs:
             echo "Skipping pinned scaffold check because scaffold/template/go.mod points at unreleased $VERSION"
             exit 0
           fi
-          make -C scaffold check-pinned GO=go GOFMT=gofmt
+          make scaffold-check-pinned GO=go GOFMT=gofmt
 
       - name: Verify workspace is clean
         run: |

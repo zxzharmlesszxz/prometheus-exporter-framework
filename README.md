@@ -252,9 +252,9 @@ Pushes and pull requests run CI checks, including a scaffold compatibility job t
 
 To publish a module version, run the `Release` workflow from the default branch and enter a tag such as `v0.1.0`.
 The workflow runs `make check`, verifies the scaffold against the current
-framework checkout with `make scaffold-local-check`, conditionally verifies the
+framework checkout with `make scaffold-check-local`, conditionally verifies the
 scaffold against its pinned published framework dependency with
-`make scaffold-pinned-check` when `scaffold/template/go.mod` does not point at
+`make scaffold-check-pinned` when `scaffold/template/go.mod` does not point at
 the release tag being created, verifies that no tracked or untracked
 non-artifact files changed after checks, creates an annotated git tag, creates a
 GitHub Release without binary or Docker artifacts, and records release notes

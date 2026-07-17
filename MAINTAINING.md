@@ -38,7 +38,7 @@ image as an end-user release artifact.
 Before tagging:
 
 1. Run `make check`.
-2. Run `make scaffold-local-check`.
+2. Run `make scaffold-check-local`.
 3. Review the public API list in `ARCHITECTURE.md` if exported identifiers,
    alias targets, alias-exposed members, methods, struct fields, or interface
    methods changed.

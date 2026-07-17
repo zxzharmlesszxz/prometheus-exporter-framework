@@ -77,7 +77,7 @@ package owns domain behavior.
 `prometheus-exporter-framework` version used by newly generated exporters.
 
 Before publishing a new framework tag, update `template/go.mod` to the tag that
-will be released. From the repository root, run `make scaffold-local-check`, or
+will be released. From the repository root, run `make scaffold-check-local`, or
 run `make check-local` inside `scaffold/`, to render a demo exporter, add a
 temporary `replace` directive to this local framework checkout, verify generated
 module files after `go mod tidy`, and run the generated exporter's Go-only
@@ -85,14 +85,12 @@ checks. The target also fails if any `__PLACEHOLDER__` values remain in rendered
 files. This lets scaffold code target the next framework tag before that tag
 exists in the module proxy.
 
-This repository's own CI uses the root `make scaffold-local-check` path through
+This repository's own CI uses the root `make scaffold-check-local` path through
 the compatibility workflow, so local and CI scaffold checks validate the same
-generated code path against the current framework checkout. The old
-`make scaffold-compatibility` target remains as an alias for local checkout
-validation.
+generated code path against the current framework checkout.
 
 When `template/go.mod` still points at the latest published framework tag, also
-run `make scaffold-pinned-check` from the repository root, or
+run `make scaffold-check-pinned` from the repository root, or
 `make check-pinned` inside `scaffold/`, before release. That verifies the
 rendered exporter against the pinned published dependency instead of the local
 checkout. Keep `internal/__FEATURE_NAME__/feature_snapshotter_ext.go`

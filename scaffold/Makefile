@@ -35,7 +35,7 @@ DOCKER_SMOKE_RUN_OPTIONS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_RU
 DOCKER_SMOKE_EXPORTER_ARGS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_EXPORTER_ARGS)),,--docker-smoke-exporter-args "$(DOCKER_SMOKE_EXPORTER_ARGS)")
 DOCKER_SMOKE_EXTRA_METRICS_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_EXTRA_METRICS)),,--docker-smoke-extra-metrics "$(DOCKER_SMOKE_EXTRA_METRICS)")
 
-.PHONY: help scripts-check tools-check symbol-diff-check render-check check check-local check-pinned new-exporter drift-check drift-check-all drift-sync drift-list-files clean require-project-name require-target-dir
+.PHONY: help scripts-check tools-check symbol-diff-check render-check check check-local check-pinned template-mod-tidy template-deps-update new-exporter drift-check drift-check-all drift-sync drift-list-files clean require-project-name require-target-dir
 
 help: ## Show available make targets.
 	@printf "\033[33mUsage:\033[0m\n"
@@ -96,6 +96,13 @@ check-local: ## Run scaffold checks against the local framework checkout.
 
 check-pinned: ## Run scaffold checks against template/go.mod's pinned framework dependency.
 	@$(MAKE) --no-print-directory check FRAMEWORK_REPLACE= GO="$(GO)" GOFMT="$(GOFMT)"
+
+template-mod-tidy: ## Run go mod tidy for the scaffold template module.
+	cd template && $(GO) mod tidy
+
+template-deps-update: ## Update scaffold template dependencies and tidy module files.
+	cd template && $(GO) get -u ./...
+	cd template && $(GO) mod tidy
 
 new-exporter: require-project-name require-target-dir ## Render a new exporter. Set PROJECT_NAME and optionally TARGET_DIR/GO_MODULE/PROJECT_DESC/FEATURE_NAME/FEATURE_NAMESPACE/METRIC_NAMESPACE/DEFAULT_PORT/DOCKER_SMOKE_*.
 	@scripts/render.sh \

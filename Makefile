@@ -11,13 +11,20 @@ SMOKE_BRANCH ?= smoke-branch
 SMOKE_REVISION ?= abc123def
 SMOKE_BUILD_USER ?= smoke-test
 SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
+SCAFFOLD_MAKEFILE ?= scaffold/Makefile
 
 .PHONY: help fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke check clean
+.PHONY: mod-tidy deps-update framework-mod-tidy framework-deps-update
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
+.PHONY: FORCE
 
 help: ## Show available make targets.
 	@printf "\033[33mUsage:\033[0m\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "};{printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@if [ -f "$(SCAFFOLD_MAKEFILE)" ]; then \
+		printf "\n\033[33mScaffold targets:\033[0m\n"; \
+		awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", "scaffold-" $$1, $$2}' "$(SCAFFOLD_MAKEFILE)" | sort; \
+	fi
 
 fmt: ## Format Go files.
 	$(GOFMT) -w $$($(GO) list -f '{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .TestGoFiles}}{{$$.Dir}}/{{.}} {{end}}' ./...)
@@ -36,6 +43,17 @@ test: ## Run Go tests.
 
 test-race: ## Run Go tests with the race detector.
 	$(GO) test -race ./...
+
+framework-mod-tidy: ## Run go mod tidy for the framework module.
+	$(GO) mod tidy
+
+framework-deps-update: ## Update framework module dependencies and tidy module files.
+	$(GO) get -u ./...
+	$(GO) mod tidy
+
+mod-tidy: framework-mod-tidy scaffold-template-mod-tidy ## Run go mod tidy for framework and scaffold template modules.
+
+deps-update: framework-deps-update scaffold-template-deps-update ## Update dependencies for framework and scaffold template modules.
 
 exporter-public-api-check: ## Check exporter public API surface.
 	$(GO) test ./exporter
@@ -81,18 +99,7 @@ check: fmt-check vet staticcheck coverage-check smoke test-race public-api-check
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
 
-.PHONY: scaffold-compatibility scaffold-local-check scaffold-pinned-check
-scaffold-compatibility: scaffold-local-check ## Alias for scaffold-local-check.
+scaffold-%: FORCE
+	@$(MAKE) -C scaffold $* GO="$(GO)" GOFMT="$(GOFMT)"
 
-scaffold-local-check: ## Check rendered scaffold against this local framework checkout.
-	@$(MAKE) -C scaffold check \
-		CHECK_GO_MODULE=github.com/example/prometheus-demo-exporter \
-		FRAMEWORK_REPLACE="$(CURDIR)" \
-		GO="$(GO)" \
-		GOFMT="$(GOFMT)"
-
-scaffold-pinned-check: ## Check rendered scaffold against template/go.mod's pinned framework dependency.
-	@$(MAKE) -C scaffold check-pinned \
-		CHECK_GO_MODULE=github.com/example/prometheus-demo-exporter \
-		GO="$(GO)" \
-		GOFMT="$(GOFMT)"
+FORCE:

@@ -37,4 +37,4 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Run scaffold compatibility
-        run: make scaffold-compatibility GO=go GOFMT=gofmt
+        run: make scaffold-check-local GO=go GOFMT=gofmt
