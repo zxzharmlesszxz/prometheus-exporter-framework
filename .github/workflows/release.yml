@@ -187,3 +187,54 @@ jobs:
             --verify-tag \
             --generate-notes \
             --title "$VERSION"
+
+  update-scaffold-template:
+    name: Update scaffold framework pin
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.26.3-alpine
+    needs:
+      - publish-release
+
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash build-base ca-certificates git make
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Bump scaffold framework pin
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
+          GOPROXY: direct
+          VERSION: ${{ inputs.version }}
+        run: |
+          git fetch origin "$DEFAULT_BRANCH"
+          git switch "$DEFAULT_BRANCH"
+          git pull --ff-only origin "$DEFAULT_BRANCH"
+
+          cd scaffold/template
+          go mod edit -require "${FRAMEWORK_MODULE}@${VERSION}"
+          go mod tidy
+          cd ../..
+
+          make scaffold-check-pinned GO=go GOFMT=gofmt
+
+          if git diff --quiet -- scaffold/template/go.mod scaffold/template/go.sum; then
+            echo "scaffold/template already points at ${VERSION}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scaffold/template/go.mod scaffold/template/go.sum
+          git commit -m "chore(scaffold): bump framework to ${VERSION}"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
