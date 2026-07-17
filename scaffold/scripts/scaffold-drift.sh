@@ -1255,7 +1255,13 @@ fi
 drift=0
 echo
 if [[ -n "$framework_issue" ]]; then
-  echo "$framework_issue"
+  if [[ "$framework_issue" == MISSING\ framework* || "$framework_issue" == OUTDATED\ framework* || "$framework_issue" == DIFFERENT\ framework* ]]; then
+    printf '\033[31m%s\033[0m\n' "$framework_issue"
+  elif [[ "$framework_issue" == NEWER\ framework* ]]; then
+    printf '\033[33m%s\033[0m\n' "$framework_issue"
+  else
+    echo "$framework_issue"
+  fi
   if [[ "$framework_drift" -ne 0 ]]; then
     drift=1
   fi
