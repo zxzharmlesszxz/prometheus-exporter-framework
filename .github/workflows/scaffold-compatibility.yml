@@ -23,7 +23,7 @@ jobs:
     name: Render scaffold against current framework checkout
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.3-alpine
+      image: golang:1.26.5-alpine
 
     steps:
       - name: Prepare Alpine

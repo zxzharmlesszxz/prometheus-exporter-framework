@@ -23,7 +23,7 @@ jobs:
     name: Framework
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.3-alpine
+      image: golang:1.26.5-alpine
     steps:
       - name: Prepare Alpine
         shell: sh
@@ -83,7 +83,7 @@ jobs:
     name: Scaffold
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.3-alpine
+      image: golang:1.26.5-alpine
     steps:
       - name: Prepare Alpine
         shell: sh

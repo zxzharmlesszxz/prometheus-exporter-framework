@@ -1162,8 +1162,8 @@ render_args+=(--target-dir "$rendered_dir")
 format_rendered_go() {
   local gofmt_bin="${GOFMT:-gofmt}"
   if ! command -v "$gofmt_bin" >/dev/null 2>&1; then
-    if [[ -x "$HOME/sdk/go1.26.3/bin/gofmt" ]]; then
-      gofmt_bin="$HOME/sdk/go1.26.3/bin/gofmt"
+    if [[ -x "$HOME/sdk/go1.26.5/bin/gofmt" ]]; then
+      gofmt_bin="$HOME/sdk/go1.26.5/bin/gofmt"
     else
       return 0
     fi
@@ -1192,8 +1192,8 @@ symbol_diff_go() {
   local file="$3"
   local go_bin="${GO:-go}"
   if ! command -v "$go_bin" >/dev/null 2>&1; then
-    if [[ -x "$HOME/sdk/go1.26.3/bin/go" ]]; then
-      go_bin="$HOME/sdk/go1.26.3/bin/go"
+    if [[ -x "$HOME/sdk/go1.26.5/bin/go" ]]; then
+      go_bin="$HOME/sdk/go1.26.5/bin/go"
     else
       return 1
     fi
