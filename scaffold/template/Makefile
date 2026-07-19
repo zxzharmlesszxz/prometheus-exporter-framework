@@ -1,6 +1,6 @@
 include Makefile.mk
 
-.PHONY: help build release release-archives release-checksums release-smoke docker-build docker-buildx docker-buildx-push docker-push fmt fmt-check vet staticcheck test test-race coverage coverage-check smoke promtool-check compose compose-up compose-down compose-logs compose-config examples-check docker-smoke-build docker-smoke-image docker-smoke go-check check full-check clean size
+.PHONY: help build release release-archives release-checksums release-smoke docker-build docker-buildx docker-buildx-push docker-push fmt fmt-check print-ldflags vet staticcheck test test-race coverage coverage-check smoke promtool-check compose compose-up compose-down compose-logs compose-config examples-check docker-smoke-build docker-smoke-image docker-smoke go-check check full-check clean size
 .SILENT: compose compose-config compose-down compose-logs compose-up size
 
 help: ## Show available make targets.
@@ -8,10 +8,17 @@ help: ## Show available make targets.
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "};{printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 fmt: ## Format Go files.
-	$(GOFMT) -w $$($(GO) list -f '{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .TestGoFiles}}{{$$.Dir}}/{{.}} {{end}}' ./...)
+	@set -e; \
+	files="$$($(GO) list -f '{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .TestGoFiles}}{{$$.Dir}}/{{.}} {{end}}' ./...)"; \
+	$(GOFMT) -w $$files
 
 fmt-check: ## Check Go formatting.
-	@test -z "$$($(GOFMT) -l $$($(GO) list -f '{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .TestGoFiles}}{{$$.Dir}}/{{.}} {{end}}' ./... | tr '\n' ' '))"
+	@set -e; \
+	files="$$($(GO) list -f '{{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}{{range .TestGoFiles}}{{$$.Dir}}/{{.}} {{end}}' ./...)"; \
+	test -z "$$($(GOFMT) -l $$files)"
+
+print-ldflags: ## Print linker flags for external build integrations.
+	@printf '%s\n' "$(strip $(LDFLAGS))"
 
 build: ## Build the local release binary into dist/.
 	mkdir -p $(DIST_DIR)
@@ -74,13 +81,13 @@ staticcheck: ## Run staticcheck.
 	GOFLAGS="$(strip $(GOFLAGS) $(STATICCHECK_GOFLAGS))" $(STATICCHECK) ./...
 
 test: ## Run Go tests.
-	$(GO) test -buildvcs=false -ldflags "$(LDFLAGS)" ./...
+	$(GO) test -buildvcs=false -ldflags "$(LDFLAGS)" -count=1 ./...
 
 test-race: ## Run Go tests with the race detector.
-	CGO_ENABLED=1 $(GO) test -buildvcs=false -race -ldflags "$(LDFLAGS)" ./...
+	CGO_ENABLED=1 $(GO) test -buildvcs=false -race -ldflags "$(LDFLAGS)" -count=1 ./...
 
 coverage: ## Run tests with coverage and write coverage reports.
-	$(GO) test -buildvcs=false -ldflags "$(LDFLAGS)" -covermode=atomic -coverprofile=$(COVERAGE_PROFILE) ./...
+	$(GO) test -buildvcs=false -ldflags "$(LDFLAGS)" -covermode=atomic -coverprofile=$(COVERAGE_PROFILE) -count=1 ./...
 	$(GO) tool cover -func=$(COVERAGE_PROFILE) | tee $(COVERAGE_REPORT)
 
 coverage-check: coverage ## Enforce the coverage threshold.
