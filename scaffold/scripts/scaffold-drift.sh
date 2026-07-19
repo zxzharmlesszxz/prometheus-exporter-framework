@@ -390,7 +390,7 @@ fi
 
 detect_module() {
   [[ -f "$target_dir/go.mod" ]] || return 0
-  awk '$1 == "module" {print $2; exit}' "$target_dir/go.mod"
+  awk "\$1 == \"module\" {print \$2; exit}" "$target_dir/go.mod"
 }
 
 detect_go_mod_required_version() {
@@ -459,6 +459,10 @@ compare_versions() {
   fi
 }
 
+contains_make_expression() {
+  [[ "$1" == *"\$("* ]]
+}
+
 detect_project_name() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
@@ -472,7 +476,7 @@ detect_project_name() {
         exit
       }
     ' "$file")"
-    if [[ -n "$value" && "$value" != *'$('* ]]; then
+    if [[ -n "$value" ]] && ! contains_make_expression "$value"; then
       printf '%s' "$value"
       return 0
     fi
@@ -522,7 +526,7 @@ detect_exporter_description() {
         exit
       }
     ' "$file")"
-    if [[ -n "$value" && "$value" != *'$('* ]]; then
+    if [[ -n "$value" ]] && ! contains_make_expression "$value"; then
       printf '%s' "$value"
       return 0
     fi
@@ -566,7 +570,7 @@ detect_feature_name() {
         exit
       }
     ' "$file")"
-    if [[ -n "$value" && "$value" != *'$('* ]]; then
+    if [[ -n "$value" ]] && ! contains_make_expression "$value"; then
       printf '%s' "$value"
       return 0
     fi
@@ -627,7 +631,7 @@ detect_default_port() {
         exit
       }
     ' "$file")"
-    if [[ -n "$value" && "$value" != *'$('* ]]; then
+    if [[ -n "$value" ]] && ! contains_make_expression "$value"; then
       printf '%s' "$value"
       return 0
     fi
@@ -666,7 +670,7 @@ detect_default_port() {
 
 sanitize_metric_namespace() {
   local value="$1"
-  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]/_/g' -e 's/_\{1,\}/_/g' -e 's/^_*//' -e 's/_*$//')"
+  value="$(printf "%s" "$value" | tr "[:upper:]" "[:lower:]" | sed -e "s/[^a-z0-9]/_/g" -e "s/_\\{1,\\}/_/g" -e "s/^_*//" -e "s/_*\$//")"
   if [[ -z "$value" ]]; then
     value="exporter_framework"
   fi
@@ -701,7 +705,7 @@ detect_namespace() {
         exit
       }
     ' "$file")"
-    if [[ -n "$value" && "$value" != *'$('* ]]; then
+    if [[ -n "$value" ]] && ! contains_make_expression "$value"; then
       printf '%s' "$value"
       return 0
     fi
@@ -864,13 +868,13 @@ legacy_managed_go_reason() {
       local reasons=()
       local collector_file="$target_dir/internal/exporter/collector.go"
       if [[ -f "$collector_file" ]]; then
-        if grep -Eq '^[[:space:]]*type[[:space:]]+Snapshot([[:space:]]|$)' "$collector_file"; then
+        if grep -Eq "^[[:space:]]*type[[:space:]]+Snapshot([[:space:]]|\$)" "$collector_file"; then
           reasons+=("Snapshot")
         fi
-        if grep -Eq '^[[:space:]]*type[[:space:]]+SnapshotGatherer([[:space:]]|$)' "$collector_file"; then
+        if grep -Eq "^[[:space:]]*type[[:space:]]+SnapshotGatherer([[:space:]]|\$)" "$collector_file"; then
           reasons+=("SnapshotGatherer")
         fi
-        if grep -Eq '^[[:space:]]*type[[:space:]]+Collector([[:space:]]|$)' "$collector_file"; then
+        if grep -Eq "^[[:space:]]*type[[:space:]]+Collector([[:space:]]|\$)" "$collector_file"; then
           reasons+=("Collector")
         fi
       fi
@@ -899,7 +903,7 @@ legacy_managed_go_reason() {
       local reasons=()
       local collector_test_file="$target_dir/internal/exporter/collector_test.go"
       if [[ -f "$collector_test_file" ]]; then
-        if grep -Eq '^[[:space:]]*type[[:space:]]+fakeSnapshotter([[:space:]]|$)' "$collector_test_file"; then
+        if grep -Eq "^[[:space:]]*type[[:space:]]+fakeSnapshotter([[:space:]]|\$)" "$collector_test_file"; then
           reasons+=("fakeSnapshotter")
         fi
         if grep -Eq '^[[:space:]]*func[[:space:]]+newFakeSnapshotter[[:space:]]*\(' "$collector_test_file"; then
@@ -1084,7 +1088,7 @@ if [[ "$docker_smoke_metric_set" -eq 0 && -z "$docker_smoke_metric" ]]; then
   fi
 fi
 if [[ -z "$docker_smoke_metric" ]]; then
-  docker_smoke_metric='$(FEATURE_NAMESPACE)_example_value 1'
+  docker_smoke_metric="\$(FEATURE_NAMESPACE)_example_value 1"
   docker_smoke_metric_set=1
 fi
 if [[ "$docker_smoke_run_options_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_RUN_OPTIONS"; then
@@ -1092,7 +1096,7 @@ if [[ "$docker_smoke_run_options_set" -eq 0 ]] && makefile_mk_var_defined "DOCKE
   docker_smoke_run_options_set=1
 fi
 if [[ "$docker_smoke_run_options_set" -eq 0 ]]; then
-  docker_smoke_run_options='-v "$(CURDIR)/$(FEATURE_CONFIG_PATH):$(FEATURE_CONFIG_CONTAINER_PATH):ro"'
+  docker_smoke_run_options="-v \"\$(CURDIR)/\$(FEATURE_CONFIG_PATH):\$(FEATURE_CONFIG_CONTAINER_PATH):ro\""
   docker_smoke_run_options_set=1
 fi
 if [[ "$docker_smoke_exporter_args_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_EXPORTER_ARGS"; then
@@ -1100,7 +1104,7 @@ if [[ "$docker_smoke_exporter_args_set" -eq 0 ]] && makefile_mk_var_defined "DOC
   docker_smoke_exporter_args_set=1
 fi
 if [[ "$docker_smoke_exporter_args_set" -eq 0 ]]; then
-  docker_smoke_exporter_args='--$(FEATURE_NAME).config-file=$(FEATURE_CONFIG_CONTAINER_PATH)'
+  docker_smoke_exporter_args="--\$(FEATURE_NAME).config-file=\$(FEATURE_CONFIG_CONTAINER_PATH)"
   docker_smoke_exporter_args_set=1
 fi
 if [[ "$docker_smoke_extra_metrics_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_EXTRA_METRICS"; then
@@ -1131,7 +1135,10 @@ else
 fi
 
 rendered_dir="$(mktemp -d)"
-trap 'rm -rf "$rendered_dir"' EXIT
+cleanup_rendered_dir() {
+  rm -rf "$rendered_dir"
+}
+trap cleanup_rendered_dir EXIT
 
 render_args=(
   --project-name "$project_name"

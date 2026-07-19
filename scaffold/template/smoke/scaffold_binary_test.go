@@ -10,7 +10,7 @@ import (
 )
 
 func TestBinarySmoke(t *testing.T) {
-	info := exporter.ExporterInfo()
+	info := exporter.Info()
 	smoke := info.Smoke
 
 	smoketest.RunBinary(t, smoketest.Config{

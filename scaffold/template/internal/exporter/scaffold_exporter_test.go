@@ -10,7 +10,7 @@ func TestExporterAdapter(t *testing.T) {
 	adaptertest.RunInjectedAdapterContract(t, adaptertest.InjectedAdapterContractConfig{
 		NewFeature:   NewFeature,
 		Main:         Main,
-		ExporterInfo: ExporterInfo,
+		ExporterInfo: Info,
 		ReplaceMainFromInjectedProject: func(fn adaptertest.MainFromInjectedProjectFunc) func() {
 			oldMain := mainFromInjectedProject
 			mainFromInjectedProject = fn
