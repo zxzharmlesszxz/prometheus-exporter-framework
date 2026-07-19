@@ -158,23 +158,12 @@ jobs:
         run: |
           revision="${GITHUB_SHA::7}"
           build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          ldflags="$(
-            cat <<EOF
-          -s -w
-          -X 'github.com/prometheus/common/version.Version=${GITHUB_REF_NAME}'
-          -X 'github.com/prometheus/common/version.Branch=${GITHUB_REF_NAME}'
-          -X 'github.com/prometheus/common/version.Revision=${revision}'
-          -X 'github.com/prometheus/common/version.BuildUser=github-actions'
-          -X 'github.com/prometheus/common/version.BuildDate=${build_date}'
-          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedExporterName=__PROJECT_NAME__'
-          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedExporterDescription=__PROJECT_DESC__'
-          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedFeatureName=__FEATURE_NAME__'
-          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedMetricNamespace=__METRIC_NAMESPACE__'
-          -X 'github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter.injectedListenAddress=:__DEFAULT_PORT__'
-          -X '__GO_MODULE__/internal/__FEATURE_NAME__.DefaultFeatureConfigFileName=__FEATURE_CONFIG_FILE__'
-          EOF
-          )"
-          ldflags="$(printf '%s\n' "${ldflags}" | sed 's/^[[:space:]]*//' | tr '\n' ' ')"
+          ldflags="$(make print-ldflags \
+            VERSION="${GITHUB_REF_NAME}" \
+            BRANCH="${GITHUB_REF_NAME}" \
+            REVISION="${revision}" \
+            BUILD_USER=github-actions \
+            BUILD_DATE="${build_date}")"
 
           {
             echo "revision=${revision}"
