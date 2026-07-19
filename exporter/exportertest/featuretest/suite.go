@@ -233,11 +233,11 @@ func (s *FeatureTestSuite[C, S]) LastSuccessfulCollectionTimestampMetric() strin
 func (s *FeatureTestSuite[C, S]) WriteConfig(t *testing.T, content string) string {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "feature.yml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	configFile := filepath.Join(t.TempDir(), "feature.yml")
+	if err := os.WriteFile(configFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", configFile, err)
 	}
-	return path
+	return configFile
 }
 
 func (s *FeatureTestSuite[C, S]) successfulSnapshot(t *testing.T, at time.Time) S {
@@ -346,15 +346,15 @@ func (s *FeatureTestSuite[C, S]) testFeatureConfigFileLoader(t *testing.T) {
 	}
 
 	missingPath := filepath.Join(t.TempDir(), "missing.yml")
-	path, loaded, err := featurekit.LoadFeatureConfigFile(s.featureName(), missingPath, s.spec.NewConfigFileTarget())
+	loadedPath, loaded, err := featurekit.LoadFeatureConfigFile(s.featureName(), missingPath, s.spec.NewConfigFileTarget())
 	if err == nil {
 		t.Fatal("LoadFeatureConfigFile() error = nil, want missing explicit file error")
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("LoadFeatureConfigFile() error = %v, want os.ErrNotExist", err)
 	}
-	if path != missingPath || loaded {
-		t.Fatalf("LoadFeatureConfigFile() path/loaded = %q/%v, want %q/false", path, loaded, missingPath)
+	if loadedPath != missingPath || loaded {
+		t.Fatalf("LoadFeatureConfigFile() path/loaded = %q/%v, want %q/false", loadedPath, loaded, missingPath)
 	}
 
 	badPath := s.WriteConfig(t, "unknown: true\n")
@@ -363,12 +363,12 @@ func (s *FeatureTestSuite[C, S]) testFeatureConfigFileLoader(t *testing.T) {
 	}
 
 	configPath := s.WriteConfig(t, "{}\n")
-	path, loaded, err = featurekit.LoadFeatureConfigFile(s.featureName(), " "+configPath+" ", s.spec.NewConfigFileTarget())
+	loadedPath, loaded, err = featurekit.LoadFeatureConfigFile(s.featureName(), " "+configPath+" ", s.spec.NewConfigFileTarget())
 	if err != nil {
 		t.Fatalf("LoadFeatureConfigFile(valid) error = %v, want nil", err)
 	}
-	if path != configPath || !loaded {
-		t.Fatalf("LoadFeatureConfigFile(valid) path/loaded = %q/%v, want %q/true", path, loaded, configPath)
+	if loadedPath != configPath || !loaded {
+		t.Fatalf("LoadFeatureConfigFile(valid) path/loaded = %q/%v, want %q/true", loadedPath, loaded, configPath)
 	}
 }
 

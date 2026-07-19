@@ -140,23 +140,23 @@ func DefaultFeatureConfigFile(featureName string) string {
 }
 
 func LoadFeatureConfigFile(featureName string, explicitPath string, target any) (string, bool, error) {
-	path := strings.TrimSpace(explicitPath)
-	required := path != ""
-	if path == "" {
-		path = DefaultFeatureConfigFile(featureName)
+	configPath := strings.TrimSpace(explicitPath)
+	required := configPath != ""
+	if configPath == "" {
+		configPath = DefaultFeatureConfigFile(featureName)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if !required && errors.Is(err, os.ErrNotExist) {
-			return path, false, nil
+			return configPath, false, nil
 		}
-		return path, false, fmt.Errorf("read %s config file %q: %w", featureName, path, err)
+		return configPath, false, fmt.Errorf("read %s config file %q: %w", featureName, configPath, err)
 	}
 	if err := yaml.UnmarshalStrict(data, target); err != nil {
-		return path, false, fmt.Errorf("parse %s config file %q: %w", featureName, path, err)
+		return configPath, false, fmt.Errorf("parse %s config file %q: %w", featureName, configPath, err)
 	}
-	return path, true, nil
+	return configPath, true, nil
 }
 
 func ResolveFeatureConfig[C any](featureName string, config C, configFileFunc FeatureConfigFileFunc[C], resolveFunc FeatureConfigResolver[C]) (C, string, bool, error) {

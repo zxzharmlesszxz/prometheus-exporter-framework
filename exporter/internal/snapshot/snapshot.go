@@ -253,12 +253,12 @@ func (c *SnapshotCollector[T]) currentSnapshot(now time.Time) snapshotState[T] {
 		c.mu.Unlock()
 
 		ctx := context.Background()
+		cancel := func() {}
 		if c.syncRefreshTimeout > 0 {
-			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, c.syncRefreshTimeout)
-			defer cancel()
 		}
 		snapshot, duration := c.collectSnapshot(ctx, now)
+		cancel()
 		c.logSnapshotErrors(snapshot)
 
 		c.mu.Lock()

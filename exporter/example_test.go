@@ -11,7 +11,7 @@ import (
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
 
-func ExampleConfigForProject() {
+func Example_configForProject() {
 	cfg := exporter.ConfigForProject("git.example.net/platform/prometheus-demo-exporter")
 
 	fmt.Println(cfg.Name)
@@ -24,7 +24,7 @@ func ExampleConfigForProject() {
 	// Prometheus Demo Exporter
 }
 
-func ExampleCollectorFeature() {
+func Example_collectorFeature() {
 	feature := exporter.CollectorFeature{
 		Name: "demo",
 		CollectorsFunc: func(ctx exporter.FeatureContext) ([]prometheus.Collector, error) {
