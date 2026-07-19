@@ -210,11 +210,30 @@ jobs:
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Wait for Go proxy
+        env:
+          FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
+          GOPROXY: https://proxy.golang.org
+          VERSION: ${{ inputs.version }}
+        run: |
+          for attempt in $(seq 1 20); do
+            if go list -m "${FRAMEWORK_MODULE}@${VERSION}" >/dev/null 2>&1; then
+              echo "Go proxy has ${FRAMEWORK_MODULE}@${VERSION}"
+              exit 0
+            fi
+
+            echo "Go proxy does not have ${FRAMEWORK_MODULE}@${VERSION} yet; retry ${attempt}/20"
+            sleep 30
+          done
+
+          echo "Go proxy did not publish ${FRAMEWORK_MODULE}@${VERSION} in time"
+          exit 1
+
       - name: Bump scaffold framework pin
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           FRAMEWORK_MODULE: github.com/zxzharmlesszxz/prometheus-exporter-framework
-          GOPROXY: direct
+          GOPROXY: https://proxy.golang.org,direct
           VERSION: ${{ inputs.version }}
         run: |
           git fetch origin "$DEFAULT_BRANCH"
