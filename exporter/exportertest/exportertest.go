@@ -52,6 +52,8 @@ func MetricFamily(tb TB, families []*dto.MetricFamily, name string) *dto.MetricF
 	return nil
 }
 
+// MetricValue returns gauge, counter, and untyped metric values. Histograms and
+// summaries intentionally return false; use Histogram for histogram metrics.
 func MetricValue(families []*dto.MetricFamily, name string, labels map[string]string) (float64, bool) {
 	metric := Metric(families, name, labels)
 	if metric == nil {

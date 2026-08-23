@@ -3,6 +3,7 @@ package snapshot
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"time"
 
@@ -345,10 +346,11 @@ type collectionDurationHistogram struct {
 }
 
 func newCollectionDurationHistogram() collectionDurationHistogram {
-	buckets := make(map[float64]uint64, len(prometheus.DefBuckets))
+	buckets := make(map[float64]uint64, len(prometheus.DefBuckets)+1)
 	for _, bound := range prometheus.DefBuckets {
 		buckets[bound] = 0
 	}
+	buckets[math.Inf(1)] = 0
 	return collectionDurationHistogram{
 		buckets: buckets,
 	}
@@ -363,9 +365,10 @@ func (h *collectionDurationHistogram) observe(duration time.Duration) {
 			h.buckets[upperBound]++
 		}
 	}
+	h.buckets[math.Inf(1)]++
 }
 
-func (h collectionDurationHistogram) clone() collectionDurationHistogram {
+func (h *collectionDurationHistogram) clone() collectionDurationHistogram {
 	clone := collectionDurationHistogram{
 		count:   h.count,
 		sum:     h.sum,

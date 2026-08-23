@@ -12,6 +12,7 @@ type InjectedAdapterContractConfig struct {
 	NewFeature                     func() framework.Feature
 	Main                           func()
 	ExporterInfo                   func() framework.ExporterInfo
+	ExporterInfoErr                func() (framework.ExporterInfo, error)
 	ReplaceMainFromInjectedProject func(MainFromInjectedProjectFunc) func()
 	Metadata                       framework.ProjectMetadata
 }
@@ -22,7 +23,11 @@ func RunInjectedAdapterContract(t *testing.T, config InjectedAdapterContractConf
 
 	metadata := config.Metadata
 	if metadata == (framework.ProjectMetadata{}) {
-		metadata = framework.InjectedProjectMetadata()
+		var err error
+		metadata, err = framework.InjectedProjectMetadataErr()
+		if err != nil {
+			t.Skipf("skipping injected adapter contract without injected metadata: %v", err)
+		}
 	}
 
 	t.Run("creates feature with injected feature name", func(t *testing.T) {
@@ -63,7 +68,7 @@ func RunInjectedAdapterContract(t *testing.T, config InjectedAdapterContractConf
 	})
 
 	t.Run("reports injected exporter info", func(t *testing.T) {
-		info := config.ExporterInfo()
+		info := exporterInfo(t, config)
 		if info.Name != metadata.ExporterName {
 			t.Fatalf("Name = %q, want %q", info.Name, metadata.ExporterName)
 		}
@@ -112,12 +117,25 @@ func requireInjectedAdapterContractConfig(t *testing.T, config InjectedAdapterCo
 	if config.Main == nil {
 		t.Fatal("InjectedAdapterContractConfig.Main is required")
 	}
-	if config.ExporterInfo == nil {
-		t.Fatal("InjectedAdapterContractConfig.ExporterInfo is required")
+	if config.ExporterInfo == nil && config.ExporterInfoErr == nil {
+		t.Fatal("InjectedAdapterContractConfig.ExporterInfo or ExporterInfoErr is required")
 	}
 	if config.ReplaceMainFromInjectedProject == nil {
 		t.Fatal("InjectedAdapterContractConfig.ReplaceMainFromInjectedProject is required")
 	}
+}
+
+func exporterInfo(t *testing.T, config InjectedAdapterContractConfig) framework.ExporterInfo {
+	t.Helper()
+
+	if config.ExporterInfoErr != nil {
+		info, err := config.ExporterInfoErr()
+		if err != nil {
+			t.Skipf("skipping injected exporter info contract without injected metadata: %v", err)
+		}
+		return info
+	}
+	return config.ExporterInfo()
 }
 
 func assertHasString(t *testing.T, values []string, want string, field string) {

@@ -3,6 +3,7 @@ package snapshot
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -88,10 +89,17 @@ func TestSnapshotCollectorExportsSnapshotAndCollectionMetrics(t *testing.T) {
 	if got := histogram.GetSampleSum(); got != 0.25 {
 		t.Fatalf("collection duration sum = %v, want 0.25", got)
 	}
-	if got := len(histogram.GetBucket()); got != len(prometheus.DefBuckets) {
-		t.Fatalf("collection duration buckets = %d, want %d", got, len(prometheus.DefBuckets))
+	wantBuckets := len(prometheus.DefBuckets) + 1
+	if got := len(histogram.GetBucket()); got != wantBuckets {
+		t.Fatalf("collection duration buckets = %d, want %d", got, wantBuckets)
 	}
 	for i, bucket := range histogram.GetBucket() {
+		if i == len(prometheus.DefBuckets) {
+			if got := bucket.GetUpperBound(); !math.IsInf(got, 1) {
+				t.Fatalf("collection duration bucket[%d] upper bound = %v, want +Inf", i, got)
+			}
+			continue
+		}
 		if got := bucket.GetUpperBound(); got != prometheus.DefBuckets[i] {
 			t.Fatalf("collection duration bucket[%d] upper bound = %v, want %v", i, got, prometheus.DefBuckets[i])
 		}
@@ -474,6 +482,26 @@ func TestSnapshotCollectorSyncRefreshTimeoutAddsDeadline(t *testing.T) {
 	}
 	if deadline.Before(time.Now()) {
 		t.Fatalf("snapshot context deadline = %v, want future deadline", deadline)
+	}
+}
+
+func TestSnapshotCollectorZeroSyncRefreshTimeoutKeepsRefreshUnbounded(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	snapshotter := &contextInspectingSnapshotter{}
+	collector := NewSnapshotCollector(SnapshotCollectorOptions[testSnapshot]{
+		Namespace:       "demo_exporter",
+		Snapshotter:     snapshotter,
+		RefreshInterval: time.Hour,
+		StatusFunc:      testSnapshotStatus,
+		Now:             func() time.Time { return now },
+	})
+
+	_ = exportertest.RegisterAndGather(t, collector)
+
+	if snapshotter.hasDeadline.Load() {
+		t.Fatal("snapshot context had deadline, want unbounded sync refresh")
 	}
 }
 

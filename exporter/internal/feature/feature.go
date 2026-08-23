@@ -30,8 +30,15 @@ type SmokeSpecProvider interface {
 }
 
 type SmokeSpec struct {
-	ServerArgs    []string
-	WantMetrics   []string
+	// ServerArgs are extra binary arguments for smoke tests. Features that need
+	// faster or safer smoke behavior should pass test-specific flag values here,
+	// for example a short refresh interval or a local config file path.
+	ServerArgs []string
+	// WantMetrics are substrings that must be present in the scraped metrics
+	// response during binary smoke tests.
+	WantMetrics []string
+	// RejectMetrics are substrings that must be absent from the scraped metrics
+	// response during binary smoke tests.
 	RejectMetrics []string
 }
 

@@ -32,6 +32,8 @@ Minimal example:
 package main
 
 import (
+	"fmt"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -51,11 +53,17 @@ func (f *Feature) DefaultListenAddress() string {
 }
 
 func (f *Feature) RegisterCollectors(ctx framework.FeatureContext, registry *prometheus.Registry) error {
+	if f.inputPath == nil {
+		return fmt.Errorf("input.path flag was not registered")
+	}
 	collector := NewDomainCollector(ctx.Logger, *f.inputPath)
 	return framework.RegisterCollectors(registry, collector)
 }
 
 func (f *Feature) RuntimeConfig() []any {
+	if f.inputPath == nil {
+		return nil
+	}
 	return []any{"input_path", *f.inputPath}
 }
 
@@ -92,7 +100,8 @@ collector := framework.NewSnapshotCollector(framework.SnapshotCollectorOptions[D
 The concrete exporter still owns the domain snapshot type and all business metrics.
 Set `SyncRefreshTimeout` on snapshot/featurekit specs when scrape-triggered
 synchronous refreshes must be bounded; leaving it zero preserves the historical
-unbounded behavior for compatibility.
+unbounded behavior for compatibility. The option does not wrap background
+refreshes; those use the lifecycle context passed to collector startup.
 
 ## Generated Feature Helpers
 
@@ -101,6 +110,9 @@ That subpackage wraps the common generated-exporter pattern: a typed domain conf
 If config preparation fails, generated feature runtime config includes
 `config_error` so startup logs show the real YAML/config-file failure instead
 of only reporting that the config file was not loaded.
+Feature config files are decoded with YAML v3 and strict known-field checking:
+unknown fields and duplicate keys fail, while empty or `null` files load as a
+zero-value config.
 
 Concrete exporters still own their domain flags, snapshot type, metric descriptors, and snapshot-to-metrics adapter.
 The scaffold/ directory in this repository owns only the glue that passes a typed `featurekit.FeatureSpec` to the framework.
@@ -130,6 +142,11 @@ Concrete exporters can reuse small metric helpers instead of carrying local copi
 - `NormalizeDuration(value, fallback)` for duration flags where non-positive values should fall back to defaults
 - `RegisterAndStartCollectors(ctx, registry, collectors...)` for collectors with a background `Start(context.Context)` lifecycle
 
+`FileScraper` read/parse counters are cumulative for the counter instance. Use
+one counter pair per source when the collector exports per-source error totals;
+reusing a single scraper across multiple paths intentionally reports aggregate
+totals.
+
 Tests can import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest` for common registry/gather helpers, metric lookup, metric presence/value/label assertions, histogram lookup, and polling metrics that are updated by background refresh loops.
 Scaffolded feature tests can additionally import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest/featuretest` for the standard `FeatureTestSuite` contract and keep only domain-specific test registration in concrete exporter repositories.
 
@@ -142,7 +159,12 @@ Use `Config{...}` directly only when a concrete exporter needs lower-level overr
 For bootstrap code that must return errors instead of panicking or exiting, use
 the `...Err` variants such as `MainFromProjectErr`,
 `MainFromInjectedProjectErr`, `ConfigFromInjectedProjectErr`, and
-`ExporterInfoFromProjectMetadataErr`.
+`ExporterInfoFromProjectMetadataErr`. Helpers without the `Err` suffix are
+fail-fast convenience APIs for generated main packages and tests.
+
+`SmokeSpec.ServerArgs` is the supported place for smoke-only flag overrides,
+including short refresh intervals or local config-file paths. Those values are
+test inputs, not framework runtime defaults.
 
 For embedded use, `RunContext`, `RunCLIContext`, and `NewRegistryContext` pass a caller-owned lifecycle context to startable collectors. `RunContext` also shuts the HTTP server down cleanly when that context is canceled.
 
@@ -283,6 +305,6 @@ When linker flags are absent, the framework falls back to Go build info and then
 
 ## Requirements
 
-Go 1.26 or newer is required intentionally.
+Go 1.27 or newer is required intentionally.
 
 This project is intended as a modern exporter framework and does not aim to support legacy Go versions.

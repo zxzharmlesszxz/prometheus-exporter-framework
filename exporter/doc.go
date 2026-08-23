@@ -28,9 +28,15 @@
 // ConfigFromInjectedProjectErr, InjectedProjectMetadataErr,
 // MainFromInjectedProjectErr, ExporterInfoFromInjectedProjectErr, and
 // ExporterInfoFromProjectMetadataErr are available for bootstrap paths that
-// need controlled error handling instead of panic/exit behavior.
+// need controlled error handling instead of panic/exit behavior. The matching
+// helpers without an Err suffix are fail-fast convenience APIs for generated
+// main packages and test bootstrap code; they panic or exit when injected
+// metadata is missing or invalid.
 // SnapshotCollector is available for features that need a background refresh
 // worker, cached scrape-time snapshots, and common collection health metrics.
+// Its SyncRefreshTimeout option bounds only scrape-triggered synchronous
+// refreshes; leaving it zero keeps those refreshes unbounded for compatibility
+// with slow exporters.
 // The exporter/featurekit subpackage provides typed lifecycle helpers for
 // generated exporters that want to avoid copying feature and collector
 // boilerplate in each concrete repository.
@@ -38,7 +44,9 @@
 // reusable test suite for scaffolded feature packages.
 // FileScraper and FileScrapeMetrics are available for file-backed scrape-time
 // collectors that share mtime, up, valid, scrape duration, and read or parse
-// error metrics.
+// error metrics. FileScraper counters are cumulative for the counter instance;
+// use separate counter instances per source when a collector exports per-source
+// read or parse error totals.
 // Use exporter/featurekit.FileScrapeMetricSpecs to keep source-health metric
 // names and descriptors consistent across scaffolded exporters.
 //

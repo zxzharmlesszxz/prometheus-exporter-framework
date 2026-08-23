@@ -1,4 +1,5 @@
 field InjectedAdapterContractConfig.ExporterInfo func() framework.ExporterInfo
+field InjectedAdapterContractConfig.ExporterInfoErr func() (framework.ExporterInfo, error)
 field InjectedAdapterContractConfig.Main func()
 field InjectedAdapterContractConfig.Metadata framework.ProjectMetadata
 field InjectedAdapterContractConfig.NewFeature func() framework.Feature

@@ -342,6 +342,43 @@ func TestFileScraperScrapeReturnsCumulativeErrorTotals(t *testing.T) {
 	}
 }
 
+func TestFileScraperScrapeKeepsSeparateCountersIsolated(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("read failed")
+	firstReadErrors := atomic.Uint64{}
+	secondReadErrors := atomic.Uint64{}
+	first := FileScraper{
+		ReadErrorsTotal: &firstReadErrors,
+		ReadFile: func(string) ([]byte, error) {
+			return nil, readErr
+		},
+		FileModificationSeconds: func(string) float64 {
+			return 123
+		},
+	}
+	second := FileScraper{
+		ReadErrorsTotal: &secondReadErrors,
+		ReadFile: func(string) ([]byte, error) {
+			return nil, readErr
+		},
+		FileModificationSeconds: func(string) float64 {
+			return 456
+		},
+	}
+
+	firstResult := first.Scrape("/tmp/first", nil)
+	secondResult := second.Scrape("/tmp/second", nil)
+	firstResult = first.Scrape("/tmp/first", nil)
+
+	if firstResult.ReadErrorsTotal != 2 {
+		t.Fatalf("first ReadErrorsTotal = %d, want 2", firstResult.ReadErrorsTotal)
+	}
+	if secondResult.ReadErrorsTotal != 1 {
+		t.Fatalf("second ReadErrorsTotal = %d, want 1", secondResult.ReadErrorsTotal)
+	}
+}
+
 func TestFileScraperScrapeUsesDefaultHooks(t *testing.T) {
 	t.Parallel()
 

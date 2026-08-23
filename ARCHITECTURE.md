@@ -151,6 +151,9 @@ Production entrypoints should prefer `RunCLI`, `Run`, or `NewServerChecked`, whi
 Bootstrap helpers without an `Err` suffix preserve legacy panic or exit
 behavior where applicable. New integration code that needs controlled failure
 handling should prefer the matching `...Err` or context-aware variant.
+Smoke-test flag overrides belong in `SmokeSpec.ServerArgs`; those arguments are
+test inputs for binary smoke checks and must not be treated as framework
+runtime defaults.
 
 Concrete exporters should treat unexported functions and types as internal implementation details.
 Breaking changes to the exported extension surface should be released with a major version bump.
