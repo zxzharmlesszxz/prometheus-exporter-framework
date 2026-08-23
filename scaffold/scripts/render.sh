@@ -177,6 +177,13 @@ if ! printf '%s\n' "$default_port" | grep -Eq "^[0-9]+\$"; then
   echo "--port must be numeric: $default_port" >&2
   exit 1
 fi
+case "$project_desc" in
+  *'
+'*)
+    echo "--description must be a single line" >&2
+    exit 1
+    ;;
+esac
 if [ -z "$docker_smoke_metric" ]; then
   echo "--docker-smoke-metric must not be empty" >&2
   exit 1

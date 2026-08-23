@@ -1,6 +1,6 @@
 include Makefile.mk
 
-.PHONY: help build release release-archives release-checksums release-smoke docker-build docker-buildx docker-buildx-push docker-push fmt fmt-check print-ldflags vet staticcheck test test-race coverage coverage-check smoke promtool-check compose compose-up compose-down compose-logs compose-config examples-check docker-smoke-build docker-smoke-image docker-smoke go-check check full-check clean size
+.PHONY: help build release release-archives release-checksums release-smoke docker-build docker-buildx docker-buildx-push docker-push fmt fmt-check print-ldflags vet staticcheck test test-race coverage coverage-check smoke promtool-check promtool-rules-test compose compose-up compose-down compose-logs compose-config examples-check docker-smoke-build docker-smoke-image docker-smoke go-check check full-check clean size
 .SILENT: compose compose-config compose-down compose-logs compose-up size
 
 help: ## Show available make targets.
@@ -135,6 +135,14 @@ docker-push: ## Push the Docker image.
 promtool-check: ## Validate the Prometheus config and rules used by Docker Compose.
 	$(MAKE) compose COMPOSE_ARGS="run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml"
 
+promtool-rules-test: ## Test bundled Prometheus alert rules when present.
+	@tests="$$(find examples/prometheus/tests -maxdepth 1 -name '*.test.yml' -exec basename {} \; 2>/dev/null | sort)"; \
+	if [ -z "$$tests" ]; then \
+		echo "no Prometheus rule tests found"; \
+		exit 0; \
+	fi; \
+	$(MAKE) compose COMPOSE_ARGS="run --rm --no-deps --workdir /etc/prometheus/rules/tests --entrypoint promtool prometheus test rules $$tests"
+
 compose: ## Run Docker Compose with Makefile.mk variables. Override COMPOSE_ARGS as needed.
 	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" \
 	PROJECT_NAME="$(PROJECT_NAME)" \
@@ -144,6 +152,10 @@ compose: ## Run Docker Compose with Makefile.mk variables. Override COMPOSE_ARGS
 	FEATURE_CONFIG_PATH="$(FEATURE_CONFIG_PATH)" \
 	FEATURE_CONFIG_CONTAINER_PATH="$(FEATURE_CONFIG_CONTAINER_PATH)" \
 	COMPOSE_EXPORTER_PORT="$(COMPOSE_EXPORTER_PORT)" \
+	PROMETHEUS_IMAGE="$(PROMETHEUS_IMAGE)" \
+	GRAFANA_IMAGE="$(GRAFANA_IMAGE)" \
+	GRAFANA_ADMIN_USER="$(GRAFANA_ADMIN_USER)" \
+	GRAFANA_ADMIN_PASSWORD="$(GRAFANA_ADMIN_PASSWORD)" \
 	LDFLAGS="$(LDFLAGS)" \
 	$(DOCKER_COMPOSE) $(COMPOSE_ARGS)
 
@@ -159,7 +171,7 @@ compose-logs: ## Follow Docker Compose logs.
 compose-config: ## Validate the Docker Compose example.
 	$(MAKE) compose COMPOSE_ARGS="config >/dev/null"
 
-examples-check: promtool-check compose-config ## Validate shipped Prometheus and Compose examples.
+examples-check: promtool-check promtool-rules-test compose-config ## Validate shipped Prometheus and Compose examples.
 
 docker-smoke-build: ## Build the Docker image used by docker-smoke.
 	$(MAKE) docker-build \
@@ -174,12 +186,12 @@ docker-smoke-image: ## Smoke-test an already built Docker image.
 	echo "$$version_output" | grep -F "$(DOCKER_SMOKE_EXPECTED_VERSION)" >/dev/null; \
 	echo "$$version_output" | grep -F "$(DOCKER_SMOKE_EXPECTED_BRANCH)" >/dev/null; \
 	echo "$$version_output" | grep -F "$(DOCKER_SMOKE_EXPECTED_REVISION)" >/dev/null
-	@cid="$$( $(DOCKER) run -d $(DOCKER_SMOKE_RUN_OPTIONS) $(DOCKER_IMAGE) --log.level=error --web.listen-address=:9900 --$(FEATURE_NAME).refresh-interval=100ms $(DOCKER_SMOKE_EXPORTER_ARGS) )"; \
+	@cid="$$( $(DOCKER) run -d $(DOCKER_SMOKE_RUN_OPTIONS) $(DOCKER_IMAGE) --log.level=error --web.listen-address=:$(DOCKER_SMOKE_PORT) --$(FEATURE_NAME).refresh-interval=100ms $(DOCKER_SMOKE_EXPORTER_ARGS) )"; \
 	trap "$(DOCKER) rm -f $$cid >/dev/null 2>&1 || true" EXIT; \
 	i=0; \
 	while [ "$$i" -lt 60 ]; do \
 		i=$$((i + 1)); \
-		if $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:9900/healthz 2>/dev/null | grep -qx 'ok'; then \
+		if $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:$(DOCKER_SMOKE_PORT)/healthz 2>/dev/null | grep -qx 'ok'; then \
 			break; \
 		fi; \
 		if [ "$$i" -eq 60 ]; then \
@@ -192,7 +204,7 @@ docker-smoke-image: ## Smoke-test an already built Docker image.
 	i=0; \
 	while [ "$$i" -lt 60 ]; do \
 		i=$$((i + 1)); \
-		metrics="$$( $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:9900/metrics )"; \
+		metrics="$$( $(DOCKER) run --rm --network container:$$cid $(DOCKER_HTTP_IMAGE) wget -qO- http://127.0.0.1:$(DOCKER_SMOKE_PORT)/metrics )"; \
 		if echo "$$metrics" | grep -F '$(METRIC_NAMESPACE)_last_collection_success 1' >/dev/null; then \
 			break; \
 		fi; \

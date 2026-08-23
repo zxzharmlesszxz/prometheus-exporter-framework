@@ -1,0 +1,35 @@
+rule_files:
+  - ../__PROJECT_NAME__.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="__FEATURE_NAME__-exporter"}'
+        values: '0+0x6'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: __FEATURE_NAME__ExporterDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: __FEATURE_NAME__-exporter
+            exp_annotations:
+              summary: __PROJECT_DESC__ is down
+              description: Prometheus cannot scrape __PROJECT_NAME__.
+
+  - interval: 1m
+    input_series:
+      - series: '__METRIC_NAMESPACE___last_collection_success{job="__FEATURE_NAME__-exporter"}'
+        values: '0+0x11'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: __FEATURE_NAME__ExporterCollectionFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: __FEATURE_NAME__-exporter
+            exp_annotations:
+              summary: __PROJECT_DESC__ collection is failing
+              description: __PROJECT_NAME__ has not completed a successful collection for at least 10 minutes.

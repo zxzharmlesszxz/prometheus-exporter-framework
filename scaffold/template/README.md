@@ -51,6 +51,8 @@ For file-backed sources, use the source-health pattern documented in
 `METRICS.md`; the framework provides `featurekit.FileScrapeMetricSpecs` and
 `exporter.FileScrapeMetrics` so every exporter exposes the same `up`, `valid`,
 `mtime`, scrape duration, read error, and parse error shape.
+Keep read/parse counters separate per logical source when the dashboard or
+alerts need per-source totals.
 
 The full metric contract lives in [`METRICS.md`](METRICS.md).
 
@@ -59,7 +61,7 @@ The full metric contract lives in [`METRICS.md`](METRICS.md).
 The repository includes [`docker-compose.yml`](docker-compose.yml) for local testing.
 The Prometheus scrape config is embedded in Compose, while alerting rules live
 under [`examples/prometheus`](examples/prometheus).
-It starts:
+It starts a loopback-only local stack:
 
 - `exporter`
 - `prometheus`
@@ -77,13 +79,17 @@ Endpoints:
 - `http://localhost:9090`
 - `http://localhost:3000`
 
+Compose uses pinned Prometheus and Grafana images by default. Override
+`PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `GRAFANA_ADMIN_USER`, or
+`GRAFANA_ADMIN_PASSWORD` when testing another version or local credentials.
+
 ## Grafana
 
 Docker Compose provisions Grafana with:
 
 - Prometheus datasource `DS_PROMETHEUS`
 - dashboards from [`examples/grafana`](examples/grafana)
-- default login `admin` / `admin`
+- default login `admin` / `admin`, unless overridden through Compose variables
 
 Open `http://localhost:3000` after `make compose`.
 

@@ -7,8 +7,8 @@ const metricExampleValue = "example_value"
 var featureMetricSpecs = []featurekit.FeatureMetricSpec{
 	{
 		ID:    metricExampleValue,
-		Scope: featurekit.MetricScopeAbsolute,
-		Name:  "__FEATURE_NAMESPACE___example_value",
+		Scope: featurekit.MetricScopeFeature,
+		Name:  "_example_value",
 		Help:  "Example __FEATURE_NAME__ metric emitted by the generated exporter skeleton",
 	},
 }

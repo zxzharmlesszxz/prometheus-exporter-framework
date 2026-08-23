@@ -63,6 +63,9 @@ var featureMetricSpecs = append(
 In `CollectFeatureMetrics`, bind those descriptors to
 `exporter.FileScrapeMetrics`, call `CollectResult`, then call `CollectValid`
 with the exporter-defined validity boolean.
+Read/parse error metrics are counters. Use a separate counter pair for each
+logical source label when the exporter reports per-source totals; reusing one
+counter pair intentionally reports aggregate totals.
 
 ## Exporter Collection Health
 

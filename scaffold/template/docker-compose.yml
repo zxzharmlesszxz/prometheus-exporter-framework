@@ -13,16 +13,16 @@ services:
       - source: feature_config
         target: ${FEATURE_CONFIG_CONTAINER_PATH:-/etc/prometheus/__FEATURE_CONFIG_FILE__}
     ports:
-      - "${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}"
+      - "127.0.0.1:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.13.1}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       exporter:
         condition: service_started
@@ -33,12 +33,12 @@ services:
       - ./examples/prometheus/:/etc/prometheus/rules/:ro
 
   grafana:
-    image: grafana/grafana:latest
+    image: ${GRAFANA_IMAGE:-grafana/grafana:13.0.3}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     configs:
       - source: grafana_prometheus_datasource

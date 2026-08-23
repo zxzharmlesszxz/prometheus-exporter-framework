@@ -166,6 +166,7 @@ drift-list-files: ## List the default scaffold-managed files used by drift-check
 
 clean: ## Remove local rendered exporters and temporary artifacts.
 	@rm -rf rendered tmp
+	@$(MAKE) -C template clean
 
 require-project-name:
 	@test -n "$(PROJECT_NAME)" || { echo "PROJECT_NAME is required" >&2; exit 2; }
