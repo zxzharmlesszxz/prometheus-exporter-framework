@@ -1250,7 +1250,11 @@ printf '  smoke-exporter-args: %s\n' "${docker_smoke_exporter_args:-<empty>}"
 printf '  smoke-extra-metrics: %s\n' "${docker_smoke_extra_metrics:-<empty>}"
 
 if [[ "$mode" == "sync" && "$allow_dirty" -ne 1 ]] && git -C "$target_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  dirty="$(git -C "$target_dir" status --short -- "${managed_files[@]}" "${managed_obsolete_files[@]}")"
+  dirty_paths=("${managed_files[@]}")
+  if [[ "${#managed_obsolete_files[@]}" -gt 0 ]]; then
+    dirty_paths+=("${managed_obsolete_files[@]}")
+  fi
+  dirty="$(git -C "$target_dir" status --short -- "${dirty_paths[@]}")"
   if [[ -n "$dirty" ]]; then
     echo
     echo "managed files already have git changes; commit/stash them or pass --allow-dirty:" >&2
