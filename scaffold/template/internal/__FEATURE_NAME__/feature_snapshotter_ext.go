@@ -15,13 +15,7 @@ func NewDefaultSnapshotEngine() featurekit.SnapshotEngine[Snapshot] {
 }
 
 func NewSnapshotEngine(ctx featurekit.CollectorContext[Config]) (featurekit.SnapshotEngine[Snapshot], error) {
-	// Keep rendered exporters compatible with framework versions that did not
-	// prepare feature config before constructing snapshotters.
-	config, _, _, err := ResolveFeatureConfig(ctx.FeatureName, ctx.Config)
-	if err != nil {
-		return nil, err
-	}
-	return newSnapshotEngine(config), nil
+	return newSnapshotEngine(ctx.Config), nil
 }
 
 func FeatureSnapshotStatus(snapshot Snapshot) framework.SnapshotStatus {

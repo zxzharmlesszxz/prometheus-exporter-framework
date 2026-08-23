@@ -13,7 +13,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest/featuretest"
-	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/featurekit"
 )
 
 func TestFeatureContract(t *testing.T) {
@@ -55,9 +54,6 @@ func RegisterFeatureTests(suite *FeatureTestSuite) {
 	})
 	suite.Register("default_snapshot_engine_collects_snapshot", func(t *testing.T) {
 		testDefaultSnapshotEngineCollectsSnapshot(t)
-	})
-	suite.Register("snapshot_engine_reports_config_error", func(t *testing.T) {
-		testSnapshotEngineReportsConfigError(t)
 	})
 }
 
@@ -119,17 +115,5 @@ func testDefaultSnapshotEngineCollectsSnapshot(t *testing.T) {
 	}
 	if !snapshot.__FEATURE_NAME__.AttemptTime.Equal(now) {
 		t.Fatalf("Snapshot().AttemptTime = %v, want %v", snapshot.__FEATURE_NAME__.AttemptTime, now)
-	}
-}
-
-func testSnapshotEngineReportsConfigError(t *testing.T) {
-	_, err := NewSnapshotEngine(featurekit.CollectorContext[Config]{
-		FeatureName: testFeatureName,
-		Config: Config{
-			ConfigFile: t.TempDir() + "/missing.yml",
-		},
-	})
-	if err == nil {
-		t.Fatal("NewSnapshotEngine() error = nil, want config file error")
 	}
 }

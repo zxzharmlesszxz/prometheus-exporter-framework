@@ -93,9 +93,7 @@ When `template/go.mod` still points at the latest published framework tag, also
 run `make scaffold-check-pinned` from the repository root, or
 `make check-pinned` inside `scaffold/`, before release. That verifies the
 rendered exporter against the pinned published dependency instead of the local
-checkout. Keep `internal/__FEATURE_NAME__/feature_snapshotter_ext.go`
-resolving feature config in `NewSnapshotEngine` until the pinned framework tag
-prepares feature config before constructing snapshotters.
+checkout.
 
 ## Update An Existing Exporter
 
