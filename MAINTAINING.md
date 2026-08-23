@@ -27,6 +27,12 @@ instead of the release tag being created, the workflow also runs scaffold checks
 without the local framework `replace`.
 If a module tag exists without a GitHub Release, rerun the workflow with the same
 version to verify the tagged commit and create the GitHub Release.
+If the post-release scaffold pin update fails after the GitHub Release is
+created, rerun the release workflow with the same version after fixing the
+failure; the workflow reuses the existing tag and release state.
+The framework root keeps a stricter default coverage threshold (`90.0`) than
+generated exporters (`85.0`) because downstream domain packages usually start
+from sparse scaffold code and harden coverage as exporter logic grows.
 
 ## Version Tags
 
@@ -44,6 +50,25 @@ Before tagging:
    methods changed.
 4. Ensure tracked files and non-artifact untracked files are clean after checks.
 5. Tag with semver when downstream projects need a stable module version.
+
+## Next Release Backlog
+
+- Evaluate replacing `go.yaml.in/yaml/v3` with `github.com/goccy/go-yaml` for
+  feature config parsing. Treat this as a parser behavior change, not a
+  mechanical dependency update. Before switching, prove compatibility for
+  unknown fields, duplicate keys, empty files, `null`, scalar coercion,
+  duration/string/list fields used by concrete exporter configs, and parse error
+  messages surfaced through `config_error`.
+- Revisit `exporter/exportertest/smoketest.freeAddress` to remove the
+  close-listener/start-binary TOCTOU window if smoke tests show port flakes.
+- Evaluate CI security hardening: `govulncheck`, optional linter expansion, and
+  whether GitHub Actions should be pinned by SHA in root workflows and/or the
+  scaffold template.
+- Revisit `make check` runtime. Coverage and race checks currently run the test
+  suite separately for clarity; optimize only if the duplicated runtime becomes
+  painful.
+- Keep `scaffold-drift.sh` changes conservative until its render, sync, and
+  symbol-diff paths have stronger regression coverage than shell syntax checks.
 
 ## Version Metadata
 
