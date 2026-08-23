@@ -27,7 +27,7 @@ jobs:
     name: Tag Go module
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.5-alpine
+      image: golang:1.27.0-alpine
 
     steps:
       - name: Prepare Alpine
@@ -168,7 +168,7 @@ jobs:
     name: Publish GitHub release
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.5-alpine
+      image: golang:1.27.0-alpine
     needs:
       - tag-module
 
@@ -192,7 +192,7 @@ jobs:
     name: Update scaffold framework pin
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.26.5-alpine
+      image: golang:1.27.0-alpine
     needs:
       - publish-release
 

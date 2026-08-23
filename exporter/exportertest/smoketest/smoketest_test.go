@@ -173,7 +173,7 @@ func TestRunBinaryWithPrebuiltBinary(t *testing.T) {
 
 func TestRunBinaryWithServerSmoke(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module smoke.test\n\ngo 1.26.0\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module smoke.test\n\ngo 1.27.0\n"), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
 	cmdDir := filepath.Join(root, "cmd")

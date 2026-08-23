@@ -1,6 +1,6 @@
 GO ?= go
 GOFMT ?= gofmt
-STATICCHECK_VERSION ?= v0.7.0
+STATICCHECK_VERSION ?= v0.8.1
 STATICCHECK ?= $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 STATICCHECK_GOFLAGS ?= -buildvcs=false
 COVERAGE_PROFILE ?= coverage.out
@@ -98,6 +98,7 @@ check: fmt-check vet staticcheck coverage-check smoke test-race public-api-check
 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
+	@$(MAKE) -C scaffold clean
 
 scaffold-%: FORCE
 	@$(MAKE) -C scaffold $* GO="$(GO)" GOFMT="$(GOFMT)"
