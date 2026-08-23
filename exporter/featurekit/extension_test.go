@@ -458,6 +458,70 @@ func TestLoadFeatureConfigFileOptionalMissingAndStrictParsing(t *testing.T) {
 	}
 }
 
+func TestLoadFeatureConfigFileYAMLV3Compatibility(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		content   string
+		wantName  string
+		wantError bool
+	}{
+		{
+			name:     "empty file",
+			content:  "",
+			wantName: "",
+		},
+		{
+			name:     "null document",
+			content:  "null\n",
+			wantName: "",
+		},
+		{
+			name:      "unknown field",
+			content:   "unexpected: value\n",
+			wantError: true,
+		},
+		{
+			name:      "duplicate key",
+			content:   "name: first\nname: second\n",
+			wantError: true,
+		},
+		{
+			name:     "numeric scalar coerced to string",
+			content:  "name: 42\n",
+			wantName: "42",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			configFile := filepath.Join(t.TempDir(), "feature.yml")
+			if err := os.WriteFile(configFile, []byte(tc.content), 0o644); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+
+			var cfg extensionTestFileConfig
+			_, loaded, err := LoadFeatureConfigFile("demo", configFile, &cfg)
+			if tc.wantError {
+				if err == nil || loaded {
+					t.Fatalf("LoadFeatureConfigFile() loaded/error = %v/%v, want false/error", loaded, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadFeatureConfigFile() error = %v, want nil", err)
+			}
+			if !loaded {
+				t.Fatal("loaded = false, want true")
+			}
+			if cfg.Name != tc.wantName {
+				t.Fatalf("cfg.Name = %q, want %q", cfg.Name, tc.wantName)
+			}
+		})
+	}
+}
+
 func TestResolveFeatureConfigReturnsConfigDirectlyWithoutResolverOrConfigFile(t *testing.T) {
 	t.Parallel()
 

@@ -1,8 +1,10 @@
 package featurekit
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path"
@@ -12,7 +14,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type FeatureConfigFileFunc[C any] func(config *C) *string
@@ -153,7 +155,12 @@ func LoadFeatureConfigFile(featureName string, explicitPath string, target any) 
 		}
 		return configPath, false, fmt.Errorf("read %s config file %q: %w", featureName, configPath, err)
 	}
-	if err := yaml.UnmarshalStrict(data, target); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(target); err != nil {
+		if errors.Is(err, io.EOF) {
+			return configPath, true, nil
+		}
 		return configPath, false, fmt.Errorf("parse %s config file %q: %w", featureName, configPath, err)
 	}
 	return configPath, true, nil
