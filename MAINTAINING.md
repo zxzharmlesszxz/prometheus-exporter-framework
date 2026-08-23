@@ -64,6 +64,10 @@ Before tagging:
 - Evaluate CI security hardening: `govulncheck`, optional linter expansion, and
   whether GitHub Actions should be pinned by SHA in root workflows and/or the
   scaffold template.
+- Evaluate replacing copied scaffold exporter GitHub Actions workflows with a
+  reusable workflow hosted by this framework repository. Keep exporter
+  repositories on a small wrapper workflow that calls a pinned framework tag and
+  inherits secrets, while preserving local exporter checkout/build context.
 - Revisit `make check` runtime. Coverage and race checks currently run the test
   suite separately for clarity; optimize only if the duplicated runtime becomes
   painful.
