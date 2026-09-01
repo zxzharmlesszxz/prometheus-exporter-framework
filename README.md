@@ -237,8 +237,10 @@ Endpoints:
 make check
 ```
 
-`make check` runs formatting checks, `go vet`, `staticcheck`, coverage
-threshold checks, binary smoke tests, race tests, and public API golden checks.
+`make check` runs formatting checks, `go vet`, `staticcheck`, `golangci-lint`,
+`govulncheck`, coverage threshold checks, binary smoke tests, and race tests. The
+coverage pass runs `go test ./...`, which includes public API golden checks; use
+`make public-api-check` for targeted public API verification.
 
 `make coverage-check` enforces `COVERAGE_THRESHOLD`, which defaults to `90.0`.
 Override it when needed:

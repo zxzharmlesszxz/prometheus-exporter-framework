@@ -367,9 +367,9 @@ func TestFileScraperScrapeKeepsSeparateCountersIsolated(t *testing.T) {
 		},
 	}
 
-	firstResult := first.Scrape("/tmp/first", nil)
+	first.Scrape("/tmp/first", nil)
 	secondResult := second.Scrape("/tmp/second", nil)
-	firstResult = first.Scrape("/tmp/first", nil)
+	firstResult := first.Scrape("/tmp/first", nil)
 
 	if firstResult.ReadErrorsTotal != 2 {
 		t.Fatalf("first ReadErrorsTotal = %d, want 2", firstResult.ReadErrorsTotal)

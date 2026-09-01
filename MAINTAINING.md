@@ -12,8 +12,10 @@ Run the standard maintenance check before changing the framework:
 make check
 ```
 
-`make check` runs formatting checks, `go vet`, `staticcheck`, coverage threshold
-checks, binary smoke tests, race tests, and public API golden checks.
+`make check` runs formatting checks, `go vet`, `staticcheck`, `golangci-lint`,
+`govulncheck`, coverage threshold checks, binary smoke tests, and race tests. The
+coverage pass runs `go test ./...`, which includes public API golden checks; use
+`make public-api-check` for targeted public API verification.
 CI also runs scaffold compatibility by rendering a demo exporter from the local
 `scaffold/` template against the current framework checkout, checking for
 unresolved placeholders, checking generated module-file tidiness, and running
@@ -59,20 +61,10 @@ Before tagging:
   unknown fields, duplicate keys, empty files, `null`, scalar coercion,
   duration/string/list fields used by concrete exporter configs, and parse error
   messages surfaced through `config_error`.
-- Revisit `exporter/exportertest/smoketest.freeAddress` to remove the
-  close-listener/start-binary TOCTOU window if smoke tests show port flakes.
-- Evaluate CI security hardening: `govulncheck`, optional linter expansion, and
-  whether GitHub Actions should be pinned by SHA in root workflows and/or the
-  scaffold template.
-- Evaluate replacing copied scaffold exporter GitHub Actions workflows with a
-  reusable workflow hosted by this framework repository. Keep exporter
-  repositories on a small wrapper workflow that calls a pinned framework tag and
-  inherits secrets, while preserving local exporter checkout/build context.
-- Revisit `make check` runtime. Coverage and race checks currently run the test
-  suite separately for clarity; optimize only if the duplicated runtime becomes
-  painful.
-- Keep `scaffold-drift.sh` changes conservative until its render, sync, and
-  symbol-diff paths have stronger regression coverage than shell syntax checks.
+- Evaluate CI security hardening further: decide whether GitHub Actions should
+  be pinned by SHA in root workflows and/or the scaffold template.
+- Keep `scaffold-drift.sh` changes conservative until edge cases around legacy
+  exporters and feature-owned files have broader regression coverage.
 
 ## Version Metadata
 
