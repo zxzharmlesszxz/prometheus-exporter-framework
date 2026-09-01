@@ -33,7 +33,7 @@ func runSymbolDiff(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 2
 	}
 	if flags.NArg() != 2 {
-		fmt.Fprintln(stderr, "usage: go-symbol-diff [--left-label label] [--right-label label] LEFT.go RIGHT.go")
+		_, _ = fmt.Fprintln(stderr, "usage: go-symbol-diff [--left-label label] [--right-label label] LEFT.go RIGHT.go")
 		return 2
 	}
 
@@ -42,12 +42,12 @@ func runSymbolDiff(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	left, err := symbols(leftPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "parse %s: %v\n", leftPath, err)
+		_, _ = fmt.Fprintf(stderr, "parse %s: %v\n", leftPath, err)
 		return 2
 	}
 	right, err := symbols(rightPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "parse %s: %v\n", rightPath, err)
+		_, _ = fmt.Fprintf(stderr, "parse %s: %v\n", rightPath, err)
 		return 2
 	}
 
@@ -69,15 +69,15 @@ func runSymbolDiff(args []string, stdout io.Writer, stderr io.Writer) int {
 		rightSymbol, rightOK := right[key]
 		switch {
 		case !leftOK:
-			fmt.Fprintf(stdout, "SYMBOL MISSING target %s\n", key)
-			fmt.Fprintf(stdout, "+++ %s %s\n%s\n", *rightLabel, key, indent(rightSymbol.text))
+			_, _ = fmt.Fprintf(stdout, "SYMBOL MISSING target %s\n", key)
+			_, _ = fmt.Fprintf(stdout, "+++ %s %s\n%s\n", *rightLabel, key, indent(rightSymbol.text))
 		case !rightOK:
-			fmt.Fprintf(stdout, "SYMBOL EXTRA target %s\n", key)
-			fmt.Fprintf(stdout, "--- %s %s\n%s\n", *leftLabel, key, indent(leftSymbol.text))
+			_, _ = fmt.Fprintf(stdout, "SYMBOL EXTRA target %s\n", key)
+			_, _ = fmt.Fprintf(stdout, "--- %s %s\n%s\n", *leftLabel, key, indent(leftSymbol.text))
 		case leftSymbol.text == rightSymbol.text:
-			fmt.Fprintf(stdout, "SYMBOL OK %s\n", key)
+			_, _ = fmt.Fprintf(stdout, "SYMBOL OK %s\n", key)
 		default:
-			fmt.Fprintf(stdout, "SYMBOL DIFF %s\n", key)
+			_, _ = fmt.Fprintf(stdout, "SYMBOL DIFF %s\n", key)
 			printLineDiff(stdout, *leftLabel+" "+key, leftSymbol.text, *rightLabel+" "+key, rightSymbol.text)
 		}
 	}
@@ -170,8 +170,8 @@ func printLineDiff(writer io.Writer, leftLabel string, left string, rightLabel s
 		maximum = len(rightLines)
 	}
 
-	fmt.Fprintf(writer, "--- %s\n", leftLabel)
-	fmt.Fprintf(writer, "+++ %s\n", rightLabel)
+	_, _ = fmt.Fprintf(writer, "--- %s\n", leftLabel)
+	_, _ = fmt.Fprintf(writer, "+++ %s\n", rightLabel)
 	for i := 0; i < maximum; i++ {
 		var leftLine, rightLine string
 		leftOK := i < len(leftLines)
@@ -183,14 +183,14 @@ func printLineDiff(writer io.Writer, leftLabel string, left string, rightLabel s
 			rightLine = rightLines[i]
 		}
 		if leftOK && rightOK && leftLine == rightLine {
-			fmt.Fprintf(writer, "  %s\n", leftLine)
+			_, _ = fmt.Fprintf(writer, "  %s\n", leftLine)
 			continue
 		}
 		if leftOK {
-			fmt.Fprintf(writer, "- %s\n", leftLine)
+			_, _ = fmt.Fprintf(writer, "- %s\n", leftLine)
 		}
 		if rightOK {
-			fmt.Fprintf(writer, "+ %s\n", rightLine)
+			_, _ = fmt.Fprintf(writer, "+ %s\n", rightLine)
 		}
 	}
 }

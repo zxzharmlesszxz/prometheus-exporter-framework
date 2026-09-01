@@ -44,6 +44,7 @@ help: ## Show available make targets.
 scripts-check: ## Check scaffold shell scripts for syntax errors.
 	@sh -n scripts/render.sh
 	@bash -n scripts/scaffold-drift.sh
+	@bash scripts/scaffold-drift_test.sh
 
 tools-check: ## Check local tools required by generated Go checks.
 	@command -v "$(GO)" >/dev/null 2>&1 || { echo "GO command not found: $(GO)" >&2; exit 127; }
