@@ -25,6 +25,8 @@ const (
 	BuildDate = "2026-05-17T00:00:00Z"
 )
 
+const serverStartAttempts = 5
+
 type ServerArgsFunc func(t *testing.T, root string) []string
 
 type Config struct {
@@ -174,7 +176,7 @@ func validateSmokePath(name string, value string) error {
 	return nil
 }
 
-func (c Config) metricWants() []string {
+func (c *Config) metricWants() []string {
 	var wants []string
 	if c.BuildInfoMetric != "" {
 		wants = append(wants,
@@ -191,10 +193,23 @@ func (c Config) metricWants() []string {
 func runServerSmoke(t *testing.T, root string, binary string, config Config, wants []string) {
 	t.Helper()
 
+	var lastStartupExit string
+	for attempt := 1; attempt <= serverStartAttempts; attempt++ {
+		retry, startupExit := runServerSmokeAttempt(t, root, binary, config, wants)
+		if !retry {
+			return
+		}
+		lastStartupExit = startupExit
+	}
+	t.Fatalf("server exited during startup after %d attempts\n%s", serverStartAttempts, lastStartupExit)
+}
+
+func runServerSmokeAttempt(t *testing.T, root string, binary string, config Config, wants []string) (bool, string) {
+	t.Helper()
+
 	addr := freeAddress(t)
 	baseURL := "http://" + addr
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	args := []string{
 		"--log.level=error",
@@ -212,6 +227,7 @@ func runServerSmoke(t *testing.T, root string, binary string, config Config, wan
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
+		cancel()
 		t.Fatalf("start binary: %v", err)
 	}
 	waitCh := make(chan error, 1)
@@ -219,6 +235,20 @@ func runServerSmoke(t *testing.T, root string, binary string, config Config, wan
 		waitCh <- cmd.Wait()
 		close(waitCh)
 	}()
+
+	select {
+	case err := <-waitCh:
+		cancel()
+		return true, fmt.Sprintf(
+			"attempt address: %s\nexit: %v\nstdout:\n%s\nstderr:\n%s",
+			addr,
+			err,
+			stdout.String(),
+			stderr.String(),
+		)
+	case <-time.After(50 * time.Millisecond):
+	}
+
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -243,6 +273,7 @@ func runServerSmoke(t *testing.T, root string, binary string, config Config, wan
 			t.Fatalf("GET %s body contains rejected metric %q:\n%s", config.TelemetryPath, reject, metrics)
 		}
 	}
+	return false, ""
 }
 
 func repoRoot(t *testing.T) string {

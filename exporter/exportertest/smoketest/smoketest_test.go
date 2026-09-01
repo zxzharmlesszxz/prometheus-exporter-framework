@@ -208,6 +208,39 @@ func TestRunBinaryWithServerSmoke(t *testing.T) {
 	})
 }
 
+func TestRunBinaryRetriesEarlyServerExit(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module smoke.test\n\ngo 1.27.0\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	cmdDir := filepath.Join(root, "cmd")
+	if err := os.Mkdir(cmdDir, 0o755); err != nil {
+		t.Fatalf("make cmd directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(cmdDir, "main.go"), []byte(fixtureExporterMain()), 0o644); err != nil {
+		t.Fatalf("write fixture main.go: %v", err)
+	}
+
+	workingDir := filepath.Join(root, "smoke")
+	if err := os.Mkdir(workingDir, 0o755); err != nil {
+		t.Fatalf("make working directory: %v", err)
+	}
+	chdir(t, workingDir)
+	t.Setenv("RUN_BINARY_SMOKE", "1")
+	t.Setenv("SMOKE_FAIL_FIRST_SERVER_START_FILE", filepath.Join(root, "first-start-failed"))
+
+	RunBinary(t, Config{
+		ProjectName:     "demo-exporter",
+		BuildInfoMetric: "demo_exporter_build_info",
+		ServerArgs: func(_ *testing.T, _ string) []string {
+			return []string{"--demo.refresh-interval=100ms"}
+		},
+		WantMetrics: []string{
+			"demo_last_collection_success 1",
+		},
+	})
+}
+
 func TestWaitForMetricsWaitsUntilAllWantedTextAppears(t *testing.T) {
 	t.Parallel()
 
@@ -348,6 +381,15 @@ func main() {
 			listenAddress = strings.TrimPrefix(arg, "--web.listen-address=")
 		case strings.HasPrefix(arg, "--web.telemetry-path="):
 			telemetryPath = strings.TrimPrefix(arg, "--web.telemetry-path=")
+		}
+	}
+
+	if retryFile := os.Getenv("SMOKE_FAIL_FIRST_SERVER_START_FILE"); retryFile != "" {
+		if _, err := os.Stat(retryFile); os.IsNotExist(err) {
+			if err := os.WriteFile(retryFile, []byte("failed\n"), 0o644); err != nil {
+				log.Fatal(err)
+			}
+			os.Exit(1)
 		}
 	}
 
