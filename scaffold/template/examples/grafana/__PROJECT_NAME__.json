@@ -593,15 +593,13 @@
                         "Value #B": 4,
                         "Value #C": 5,
                         "Value #D": 6,
-                        "Value #E": 7,
-                        "Value #F": 8
+                        "Value #E": 7
                       },
                       "renameByName": {
                         "Value #B": "uptime",
                         "Value #C": "rss_mb",
                         "Value #D": "goroutines",
-                        "Value #E": "open_fds",
-                        "Value #F": "scrape_duration"
+                        "Value #E": "open_fds"
                       }
                     }
                   }
@@ -671,19 +669,6 @@
                       {
                         "id": "unit",
                         "value": "decmbytes"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "scope": "series",
-                      "options": "scrape_duration"
-                    },
-                    "properties": [
-                      {
-                        "id": "unit",
-                        "value": "s"
                       }
                     ]
                   },
