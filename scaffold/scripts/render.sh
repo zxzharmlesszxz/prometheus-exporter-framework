@@ -197,6 +197,22 @@ fi
 script_dir="$(unset CDPATH; cd -- "$(dirname -- "$0")" && pwd)"
 repo_dir="$(cd "$script_dir/.." && pwd)"
 template_dir="$repo_dir/template"
+framework_version="$(
+  awk '
+    $1 == "require" && $2 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" {
+      print $3
+      exit
+    }
+    $1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" {
+      print $2
+      exit
+    }
+  ' "$template_dir/go.mod"
+)"
+if [ -z "$framework_version" ]; then
+  echo "template go.mod does not require github.com/zxzharmlesszxz/prometheus-exporter-framework" >&2
+  exit 1
+fi
 
 mkdir -p "$target_dir"
 cp -R "$template_dir/." "$target_dir/"
@@ -209,6 +225,7 @@ export FEATURE_NAMESPACE="$feature_namespace"
 export METRIC_NAMESPACE="$metric_namespace"
 export DEFAULT_PORT="$default_port"
 export FEATURE_CONFIG_FILE="$feature_config_file"
+export FRAMEWORK_VERSION="$framework_version"
 export DOCKER_SMOKE_METRIC="$docker_smoke_metric"
 export DOCKER_SMOKE_RUN_OPTIONS="$docker_smoke_run_options"
 export DOCKER_SMOKE_EXPORTER_ARGS="$docker_smoke_exporter_args"
@@ -237,6 +254,8 @@ DEFAULT_PORT_SED="$(sed_replacement "$DEFAULT_PORT")"
 export DEFAULT_PORT_SED
 FEATURE_CONFIG_FILE_SED="$(sed_replacement "$FEATURE_CONFIG_FILE")"
 export FEATURE_CONFIG_FILE_SED
+FRAMEWORK_VERSION_SED="$(sed_replacement "$FRAMEWORK_VERSION")"
+export FRAMEWORK_VERSION_SED
 DOCKER_SMOKE_METRIC_SED="$(sed_replacement "$DOCKER_SMOKE_METRIC")"
 export DOCKER_SMOKE_METRIC_SED
 DOCKER_SMOKE_RUN_OPTIONS_SED="$(sed_replacement "$DOCKER_SMOKE_RUN_OPTIONS")"
@@ -257,6 +276,7 @@ find "$target_dir" -type f -exec sh -c '
       -e "s|__METRIC_NAMESPACE__|$METRIC_NAMESPACE_SED|g" \
       -e "s|__DEFAULT_PORT__|$DEFAULT_PORT_SED|g" \
       -e "s|__FEATURE_CONFIG_FILE__|$FEATURE_CONFIG_FILE_SED|g" \
+      -e "s|__FRAMEWORK_VERSION__|$FRAMEWORK_VERSION_SED|g" \
       -e "s|__DOCKER_SMOKE_METRIC__|$DOCKER_SMOKE_METRIC_SED|g" \
       -e "s|__DOCKER_SMOKE_RUN_OPTIONS__|$DOCKER_SMOKE_RUN_OPTIONS_SED|g" \
       -e "s|__DOCKER_SMOKE_EXPORTER_ARGS__|$DOCKER_SMOKE_EXPORTER_ARGS_SED|g" \

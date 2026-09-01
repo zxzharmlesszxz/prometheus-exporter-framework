@@ -10,7 +10,7 @@ This directory owns generated-repository shape:
 - typed snapshot collector wiring
 - shared feature test suite usage
 - example Prometheus, Grafana, and Docker Compose files
-- GitHub Actions and GitLab CI starter workflows
+- GitHub Actions reusable-workflow wrapper and GitLab CI starter workflow
 - Dependabot starter configuration
 - rendering script
 
@@ -66,6 +66,15 @@ Run `make check` in this scaffold repository to render a demo exporter, add a
 temporary `replace` to the local framework checkout, check for unresolved
 placeholders, verify scaffold drift, verify `go mod tidy` idempotence, and run
 generated Go-only checks.
+
+The rendered GitHub Actions CI file is intentionally a thin wrapper around the
+framework-owned reusable workflow at
+`zxzharmlesszxz/prometheus-exporter-framework/.github/workflows/exporter-ci.yml`.
+The wrapper pins the workflow to the framework version from `template/go.mod`, so
+exporter repositories keep their own checkout/build context without copying the
+full CI implementation. The reusable workflow owns shared checks such as Go
+checks, Docker smoke tests, release artifact builds, Trivy repository scanning,
+and pre-push Docker image version/vulnerability gates.
 
 The generated `cmd/scaffold_main.go` is intentionally stable. Project metadata is
 injected by Makefile linker flags from `Makefile.mk`, while the concrete feature
