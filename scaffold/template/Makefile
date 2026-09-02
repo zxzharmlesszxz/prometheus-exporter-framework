@@ -117,7 +117,7 @@ smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" EXPORTER_SMOKE_BINARY="$(SMOKE_BINARY)" $(GO) test -buildvcs=false -ldflags "$(SMOKE_LDFLAGS)" ./smoke -run TestBinarySmoke -count=1
 
 require-rendered-template:
-	@if [ "$(PROJECT_NAME)" = "__PROJECT_NAME__" ]; then \
+	@if [ "$(PROJECT_NAME)" = "$(SCAFFOLD_TEMPLATE_PROJECT_NAME)" ]; then \
 		echo "scaffold template must be rendered before running build targets" >&2; \
 		exit 2; \
 	fi

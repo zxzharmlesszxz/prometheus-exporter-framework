@@ -36,6 +36,17 @@ if grep -R -n -E '__[A-Z0-9_]+__' "$target_dir"; then
   exit 1
 fi
 
+printf '%s\n' \
+  'include Makefile' \
+  'print-vars:' \
+  '	@printf "%s\n" "DOCKER_PROJECT_NAME=$(DOCKER_PROJECT_NAME)" "COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)" "COMPOSE_FEATURE_NAME=$(COMPOSE_FEATURE_NAME)" "COMPOSE_EXPORTER_PORT=$(COMPOSE_EXPORTER_PORT)"' \
+  >"$tmp/rendered-vars.mk"
+make -C "$target_dir" --no-print-directory -f "$tmp/rendered-vars.mk" print-vars >"$tmp/rendered-make-vars.out"
+grep -Fx "DOCKER_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "COMPOSE_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "COMPOSE_FEATURE_NAME=demo" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "COMPOSE_EXPORTER_PORT=9888" "$tmp/rendered-make-vars.out" >/dev/null
+
 grep -F "uses: zxzharmlesszxz/prometheus-exporter-framework/.github/workflows/exporter-ci.yml@v" \
   "$target_dir/.github/workflows/ci.yml" >/dev/null
 

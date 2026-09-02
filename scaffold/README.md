@@ -82,27 +82,29 @@ package owns domain behavior.
 
 ## Framework Version
 
-`template/go.mod` tracks the
+`template/go.mod` tracks the latest released
 `prometheus-exporter-framework` version used by newly generated exporters.
 
-Before publishing a new framework tag, update `template/go.mod` to the tag that
-will be released. From the repository root, run `make scaffold-check-local`, or
-run `make check-local` inside `scaffold/`, to render a demo exporter, add a
-temporary `replace` directive to this local framework checkout, verify generated
-module files after `go mod tidy`, and run the generated exporter's Go-only
-checks. The target also fails if any `__PLACEHOLDER__` values remain in rendered
-files. This lets scaffold code target the next framework tag before that tag
-exists in the module proxy.
+Before publishing a new framework tag, run `make scaffold-check-local` from the
+repository root, or `make check-local` inside `scaffold/`. The check renders a
+demo exporter, adds a temporary `replace` directive to this local framework
+checkout, verifies generated module files after `go mod tidy`, and runs the
+generated exporter's Go-only checks. The target also fails if any
+`__PLACEHOLDER__` values remain in rendered files.
+
+The release workflow creates the framework tag first. After the GitHub Release
+exists and the Go proxy can resolve the new module version, the workflow updates
+`template/go.mod` to that released version, validates the pinned scaffold path,
+and pushes a follow-up scaffold pin commit to the default branch.
 
 This repository's own CI uses the root `make scaffold-check-local` path through
 the compatibility workflow, so local and CI scaffold checks validate the same
 generated code path against the current framework checkout.
 
-When `template/go.mod` still points at the latest published framework tag, also
-run `make scaffold-check-pinned` from the repository root, or
-`make check-pinned` inside `scaffold/`, before release. That verifies the
-rendered exporter against the pinned published dependency instead of the local
-checkout.
+When `template/go.mod` points at the latest published framework tag, also run
+`make scaffold-check-pinned` from the repository root, or `make check-pinned`
+inside `scaffold/`, before release. That verifies the rendered exporter against
+the pinned published dependency instead of the local checkout.
 
 ## Update An Existing Exporter
 
