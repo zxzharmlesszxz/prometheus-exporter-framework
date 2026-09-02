@@ -17,11 +17,10 @@
 //     subpackages.
 //
 // Concrete exporters provide domain behavior by implementing Feature and
-// passing one or more features to MainFromProject, MainFromInjectedProject,
-// MainForProject, Main, RunCLIFromProject, or RunCLI. A feature registers its
-// own flags and collectors; optional interfaces add feature names to logs,
-// report runtime configuration fields, provide binary smoke metadata, or
-// override the default listen address. Generated exporters usually use
+// passing one or more features to MainFromInjectedProject, Main, or RunCLI. A
+// feature registers its own flags and collectors; optional interfaces add
+// feature names to logs, report runtime configuration fields, or provide binary
+// smoke metadata. Generated exporters use
 // Makefile-injected project metadata through ConfigFromInjectedProject and
 // ExporterInfoFromInjectedProject, which keeps project bootstrap code out of
 // concrete repositories. Error-returning variants such as

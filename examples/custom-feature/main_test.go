@@ -36,7 +36,7 @@ func TestFeatureRegistersDemoCollector(t *testing.T) {
 	}
 }
 
-func TestFeatureRuntimeConfigAndDefaultListenAddress(t *testing.T) {
+func TestFeatureRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
 	feature := &Feature{}
@@ -46,9 +46,6 @@ func TestFeatureRuntimeConfigAndDefaultListenAddress(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	if got := feature.DefaultListenAddress(); got != ":9901" {
-		t.Fatalf("DefaultListenAddress() = %q, want %q", got, ":9901")
-	}
 	runtimeConfig := feature.RuntimeConfig()
 	if len(runtimeConfig) != 2 || runtimeConfig[0] != "demo_target" || runtimeConfig[1] != "node-b" {
 		t.Fatalf("RuntimeConfig() = %v, want [demo_target node-b]", runtimeConfig)

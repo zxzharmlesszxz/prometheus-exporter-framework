@@ -19,23 +19,6 @@ import (
 func TestFacadeConfigAndMetadataHelpers(t *testing.T) {
 	t.Parallel()
 
-	feature := exporter.CollectorFeature{
-		Name:                      "facade",
-		DefaultListenAddressValue: ":9123",
-	}
-
-	cfg := exporter.ConfigFromProject(feature)
-	if cfg.DefaultListenAddress != ":9123" {
-		t.Fatalf("ConfigFromProject().DefaultListenAddress = %q, want :9123", cfg.DefaultListenAddress)
-	}
-
-	if got := exporter.ExporterNameFromProject("example.com/team/prometheus-facade-exporter"); got != "facade_exporter" {
-		t.Fatalf("ExporterNameFromProject() = %q, want facade_exporter", got)
-	}
-	if got := exporter.DescriptionFromProject("example.com/team/prometheus-facade-exporter"); got != "Prometheus Facade Exporter" {
-		t.Fatalf("DescriptionFromProject() = %q, want Prometheus Facade Exporter", got)
-	}
-
 	metrics := exporter.StandardMetricInfo("facade_exporter")
 	if metrics.BuildInfo != "facade_exporter_build_info" {
 		t.Fatalf("StandardMetricInfo().BuildInfo = %q", metrics.BuildInfo)
@@ -84,10 +67,6 @@ func TestFacadeCLIAndServerErrors(t *testing.T) {
 
 	if err := exporter.MainErr(exporter.Config{Name: "facade_exporter", DefaultListenAddress: "9888"}); err == nil {
 		t.Fatal("MainErr() error = nil, want invalid default listen address error")
-	}
-
-	if err := exporter.RunCLIFromProject([]string{"--not-a-real-flag"}); err == nil {
-		t.Fatal("RunCLIFromProject() error = nil, want parse error")
 	}
 
 	err := exporter.RunCLI(exporter.Config{Name: "facade_exporter"}, []string{"--web.telemetry-path=metrics"})

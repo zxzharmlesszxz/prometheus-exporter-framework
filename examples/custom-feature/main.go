@@ -15,10 +15,6 @@ func (f *Feature) RegisterFlags(app *kingpin.Application) {
 	f.target = app.Flag("demo.target", "Target name exposed by the demo collector").Default("local").String()
 }
 
-func (f *Feature) DefaultListenAddress() string {
-	return ":9901"
-}
-
 func (f *Feature) RegisterCollectors(ctx framework.FeatureContext, registry *prometheus.Registry) error {
 	target := "local"
 	if f.target != nil {
@@ -59,5 +55,13 @@ func (c demoCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func main() {
-	framework.MainFromProject(&Feature{})
+	framework.Main(framework.Config{
+		Name:                 "demo_exporter",
+		Namespace:            "demo_exporter",
+		Description:          "Prometheus Demo Exporter",
+		DefaultListenAddress: ":9901",
+		Features: []framework.Feature{
+			&Feature{},
+		},
+	})
 }

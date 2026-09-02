@@ -42,10 +42,6 @@ type SmokeSpec struct {
 	RejectMetrics []string
 }
 
-type DefaultListenAddressProvider interface {
-	DefaultListenAddress() string
-}
-
 type StartableCollector interface {
 	prometheus.Collector
 	Start(context.Context)
@@ -59,20 +55,15 @@ type FeatureContext struct {
 }
 
 type CollectorFeature struct {
-	Name                      string
-	DefaultListenAddressValue string
-	RegisterFlagsFunc         func(app *kingpin.Application)
-	CollectorsFunc            func(ctx FeatureContext) ([]prometheus.Collector, error)
-	RuntimeConfigFunc         func() []any
-	RegisterCollectorsFunc    func(ctx FeatureContext, registry *prometheus.Registry) error
+	Name                   string
+	RegisterFlagsFunc      func(app *kingpin.Application)
+	CollectorsFunc         func(ctx FeatureContext) ([]prometheus.Collector, error)
+	RuntimeConfigFunc      func() []any
+	RegisterCollectorsFunc func(ctx FeatureContext, registry *prometheus.Registry) error
 }
 
 func (f CollectorFeature) FeatureName() string {
 	return f.Name
-}
-
-func (f CollectorFeature) DefaultListenAddress() string {
-	return f.DefaultListenAddressValue
 }
 
 func (f CollectorFeature) RegisterFlags(app *kingpin.Application) {

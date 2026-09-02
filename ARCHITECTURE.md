@@ -15,7 +15,7 @@ Domain logic is supplied by external `exporter.Feature` implementations.
   Public framework facade used by concrete exporters. It preserves the stable
   `exporter.X` API while delegating implementation to focused internal packages.
 - `exporter/internal/app`
-  CLI bootstrap, config derivation, HTTP server wiring, registry setup,
+  CLI bootstrap, HTTP server wiring, registry setup,
   version hydration, and injected project metadata.
 - `exporter/internal/feature`
   Feature contracts plus collector registration and startup helpers.
@@ -34,7 +34,7 @@ Domain logic is supplied by external `exporter.Feature` implementations.
 
 ## Data Flow
 
-1. A concrete exporter calls `exporter.MainFromProject(features...)`, `exporter.MainForProject(projectName, description, features...)`, or `exporter.Main(exporter.Config{...})` when it needs explicit metadata overrides.
+1. A scaffold-generated exporter calls `exporter.MainFromInjectedProject(features...)` through its scaffold-owned internal exporter bridge; embedded programs can call `exporter.Main(exporter.Config{...})` with explicit runtime metadata.
 2. The framework registers common CLI flags and asks each feature to register its own flags.
 3. After parsing, the framework creates the logger, runtime options, and Prometheus registry.
 4. The registry always receives:
@@ -61,9 +61,6 @@ Optional interfaces:
   Adds a feature name to structured logs and registration errors.
 - `RuntimeConfigReporter`
   Adds feature-specific fields to the startup runtime config log.
-- `DefaultListenAddressProvider`
-  Provides the feature's default `--web.listen-address` value.
-
 The helper `CollectorFeature` can be used when a feature only needs callbacks instead of a dedicated type.
 The helper `SnapshotCollector` can be used when a feature needs a typed snapshot cache, background refresh loop, and common collection health metrics.
 The `exporter/featurekit` subpackage can be used by scaffolded exporters that want a typed feature spec instead of hand-written flag, runtime-config, collector-registration, and collector-startup boilerplate.
@@ -94,12 +91,9 @@ Domain-source health belongs in feature collectors.
 
 The public extension surface is:
 
-- `Main`, `MainErr`, `MainFromProject`, `MainFromProjectErr`,
-  `MainForProject`, `MainForProjectErr`, `MainFromInjectedProject`, and
-  `MainFromInjectedProjectErr`
-- `RunCLI`, `RunCLIContext`, and `RunCLIFromProject`
-- `Config`, `ConfigFromProject`, `ConfigForProject`,
-  `ConfigFromInjectedProject`, and `ConfigFromInjectedProjectErr`
+- `Main`, `MainErr`, `MainFromInjectedProject`, and `MainFromInjectedProjectErr`
+- `RunCLI` and `RunCLIContext`
+- `Config`, `ConfigFromInjectedProject`, and `ConfigFromInjectedProjectErr`
 - `Options`, `Run`, `RunContext`, `MustRun`, `NewServer`, and
   `NewServerChecked`
 - `HandlerOptions`, `NewHandler`, and `NewHandlerChecked`
@@ -110,7 +104,7 @@ The public extension surface is:
 - `BoolFloat`, `UnixTimestamp`, `FileMTimeSeconds`, `FileScraper`,
   `FileScrapeMetrics`, `FileScrapeResult`, `FileReadFunc`, `Uint64Counter`,
   and `NormalizeDuration`
-- `NamedFeature`, `RuntimeConfigReporter`, and `DefaultListenAddressProvider`
+- `NamedFeature` and `RuntimeConfigReporter`
 - `SmokeSpecProvider` and `SmokeSpec`
 - `NewRegistry`, `NewRegistryContext`, `RegisterCollectors`, and
   `RegisterAndStartCollectors`
@@ -122,7 +116,6 @@ The public extension surface is:
   `ExporterInfoFromInjectedProject`, `ExporterInfoFromInjectedProjectErr`,
   `StandardMetricInfo`, `ProjectMetadata`, `ExporterInfo`, `MetricInfo`, and
   `SmokeInfo`
-- `ExporterNameFromProject` and `DescriptionFromProject`
 - `HydrateVersionMetadata` and `ResolveVersionMetadata`
 
 The `exporter/featurekit` subpackage is public support for generated exporters

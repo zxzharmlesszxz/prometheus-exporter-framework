@@ -8,7 +8,11 @@ import (
 )
 
 func main() {
-	if err := exporter.MainFromProjectErr(); err != nil {
+	if err := exporter.MainErr(exporter.Config{
+		Name:        "exporter_framework",
+		Namespace:   "exporter_framework",
+		Description: "Prometheus exporter framework",
+	}); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

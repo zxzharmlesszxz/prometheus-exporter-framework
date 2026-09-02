@@ -1,5 +1,4 @@
 alias-field CollectorFeature.CollectorsFunc func(ctx FeatureContext) ([]prometheus.Collector, error)
-alias-field CollectorFeature.DefaultListenAddressValue string
 alias-field CollectorFeature.Name string
 alias-field CollectorFeature.RegisterCollectorsFunc func(ctx FeatureContext, registry *prometheus.Registry) error
 alias-field CollectorFeature.RegisterFlagsFunc func(app *kingpin.Application)
@@ -91,7 +90,6 @@ alias-field SnapshotCollectorOptions.StatusFunc func(T) SnapshotStatus
 alias-field SnapshotCollectorOptions.SyncRefreshTimeout time.Duration
 alias-field SnapshotStatus.AttemptTime time.Time
 alias-field SnapshotStatus.Success bool
-alias-interface DefaultListenAddressProvider.DefaultListenAddress func() string
 alias-interface Feature.RegisterCollectors func(ctx FeatureContext, registry *prometheus.Registry) error
 alias-interface Feature.RegisterFlags func(app *kingpin.Application)
 alias-interface NamedFeature.FeatureName func() string
@@ -105,7 +103,6 @@ alias-interface Uint64Counter.Load func() uint64
 alias-method (*SnapshotCollector[T]) Collect func(ch chan<- prometheus.Metric)
 alias-method (*SnapshotCollector[T]) Describe func(ch chan<- *prometheus.Desc)
 alias-method (*SnapshotCollector[T]) Start func(ctx context.Context)
-alias-method (CollectorFeature) DefaultListenAddress func() string
 alias-method (CollectorFeature) FeatureName func() string
 alias-method (CollectorFeature) RegisterCollectors func(ctx FeatureContext, registry *prometheus.Registry) error
 alias-method (CollectorFeature) RegisterFlags func(app *kingpin.Application)
@@ -120,16 +117,12 @@ alias-method (FileScraper) Scrape func(path string, parse func([]byte) error) (r
 alias-method (ProjectMetadata) Validate func() error
 const DefaultSnapshotRefreshInterval
 func BoolFloat func(value bool) float64
-func ConfigForProject func(projectName string, features ...Feature) Config
 func ConfigFromInjectedProject func(features ...Feature) Config
 func ConfigFromInjectedProjectErr func(features ...Feature) (Config, error)
-func ConfigFromProject func(features ...Feature) Config
-func DescriptionFromProject func(projectName string) string
 func ExporterInfoFromInjectedProject func(features ...Feature) ExporterInfo
 func ExporterInfoFromInjectedProjectErr func(features ...Feature) (ExporterInfo, error)
 func ExporterInfoFromProjectMetadata func(metadata ProjectMetadata, features ...Feature) ExporterInfo
 func ExporterInfoFromProjectMetadataErr func(metadata ProjectMetadata, features ...Feature) (ExporterInfo, error)
-func ExporterNameFromProject func(projectName string) string
 func FileMTimeSeconds func(path string) float64
 func HydrateVersionMetadata func()
 func InjectedDefaultListenAddress func() string
@@ -141,12 +134,8 @@ func InjectedProjectMetadata func() ProjectMetadata
 func InjectedProjectMetadataErr func() (ProjectMetadata, error)
 func Main func(cfg Config)
 func MainErr func(cfg Config) error
-func MainForProject func(projectName, description string, features ...Feature)
-func MainForProjectErr func(projectName, description string, features ...Feature) error
 func MainFromInjectedProject func(features ...Feature)
 func MainFromInjectedProjectErr func(features ...Feature) error
-func MainFromProject func(features ...Feature)
-func MainFromProjectErr func(features ...Feature) error
 func MustRun func(opts Options, logger *slog.Logger)
 func NewHandler func(opts HandlerOptions) http.Handler
 func NewHandlerChecked func(opts HandlerOptions) (http.Handler, error)
@@ -162,13 +151,11 @@ func ResolveVersionMetadata func(currentVersion string, currentBranch string, cu
 func Run func(opts Options, logger *slog.Logger) error
 func RunCLI func(cfg Config, args []string) error
 func RunCLIContext func(ctx context.Context, cfg Config, args []string) error
-func RunCLIFromProject func(args []string, features ...Feature) error
 func RunContext func(ctx context.Context, opts Options, logger *slog.Logger) error
 func StandardMetricInfo func(namespace string) MetricInfo
 func UnixTimestamp func(value time.Time) float64
 type CollectorFeature = feature.CollectorFeature
 type Config = app.Config
-type DefaultListenAddressProvider = feature.DefaultListenAddressProvider
 type ExporterInfo = app.ExporterInfo
 type Feature = feature.Feature
 type FeatureContext = feature.FeatureContext

@@ -12,7 +12,6 @@ type NamedFeature = feature.NamedFeature
 type RuntimeConfigReporter = feature.RuntimeConfigReporter
 type SmokeSpecProvider = feature.SmokeSpecProvider
 type SmokeSpec = feature.SmokeSpec
-type DefaultListenAddressProvider = feature.DefaultListenAddressProvider
 type StartableCollector = feature.StartableCollector
 type FeatureContext = feature.FeatureContext
 type CollectorFeature = feature.CollectorFeature

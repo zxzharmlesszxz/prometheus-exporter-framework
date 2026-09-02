@@ -8,26 +8,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
+	framework "github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter"
 )
 
-func Example_configForProject() {
-	cfg := exporter.ConfigForProject("git.example.net/platform/prometheus-demo-exporter")
-
-	fmt.Println(cfg.Name)
-	fmt.Println(cfg.Namespace)
-	fmt.Println(cfg.Description)
-
-	// Output:
-	// demo_exporter
-	// demo_exporter
-	// Prometheus Demo Exporter
-}
-
 func Example_collectorFeature() {
-	feature := exporter.CollectorFeature{
+	feature := framework.CollectorFeature{
 		Name: "demo",
-		CollectorsFunc: func(ctx exporter.FeatureContext) ([]prometheus.Collector, error) {
+		CollectorsFunc: func(ctx framework.FeatureContext) ([]prometheus.Collector, error) {
 			return []prometheus.Collector{
 				prometheus.NewGaugeFunc(
 					prometheus.GaugeOpts{
@@ -41,7 +28,7 @@ func Example_collectorFeature() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	registry, err := exporter.NewRegistry("demo_exporter", logger, feature)
+	registry, err := framework.NewRegistry("demo_exporter", logger, feature)
 	if err != nil {
 		fmt.Println(err)
 		return

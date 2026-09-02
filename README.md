@@ -48,10 +48,6 @@ func (f *Feature) RegisterFlags(app *kingpin.Application) {
 	f.inputPath = app.Flag("input.path", "Path to exporter input").Required().String()
 }
 
-func (f *Feature) DefaultListenAddress() string {
-	return ":9901"
-}
-
 func (f *Feature) RegisterCollectors(ctx framework.FeatureContext, registry *prometheus.Registry) error {
 	if f.inputPath == nil {
 		return fmt.Errorf("input.path flag was not registered")
@@ -68,7 +64,15 @@ func (f *Feature) RuntimeConfig() []any {
 }
 
 func main() {
-	framework.MainFromProject(&Feature{})
+	framework.Main(framework.Config{
+		Name:                 "demo_exporter",
+		Namespace:            "demo_exporter",
+		Description:          "Prometheus Demo Exporter",
+		DefaultListenAddress: ":9901",
+		Features: []framework.Feature{
+			&Feature{},
+		},
+	})
 }
 ```
 
@@ -150,17 +154,22 @@ totals.
 Tests can import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest` for common registry/gather helpers, metric lookup, metric presence/value/label assertions, histogram lookup, and polling metrics that are updated by background refresh loops.
 Scaffolded feature tests can additionally import `github.com/zxzharmlesszxz/prometheus-exporter-framework/exporter/exportertest/featuretest` for the standard `FeatureTestSuite` contract and keep only domain-specific test registration in concrete exporter repositories.
 
-`ConfigFromProject` derives exporter name and metric namespace from the Go module/project name.
-For example, `prometheus-demo-exporter` becomes `demo_exporter`.
-The default listen address is taken from the first feature that implements `DefaultListenAddress() string` and returns a valid `:port` or `host:port` address, otherwise it falls back to `:9900`.
-`MainFromProject(features...)` derives metric namespace and description from the Go module path while using the executable file name for CLI usage and the landing page.
-Use `MainForProject(projectName, description, features...)` only when an exporter needs explicit project metadata.
-Use `Config{...}` directly only when a concrete exporter needs lower-level overrides.
+Scaffold-generated exporters use Makefile-injected metadata through
+`MainFromInjectedProject`, `ConfigFromInjectedProject`, and
+`ExporterInfoFromInjectedProject`. This is the supported path for concrete
+exporter repositories because exporter identity, metric namespace, default
+listen address, Docker entrypoint, dashboards, and alert examples are rendered
+from one scaffold contract.
+
+Use `Config{...}` directly only for embedded programs or focused tests that
+need lower-level runtime control. The framework no longer derives exporter
+identity from Go module or project names.
+
 For bootstrap code that must return errors instead of panicking or exiting, use
-the `...Err` variants such as `MainFromProjectErr`,
-`MainFromInjectedProjectErr`, `ConfigFromInjectedProjectErr`, and
-`ExporterInfoFromProjectMetadataErr`. Helpers without the `Err` suffix are
-fail-fast convenience APIs for generated main packages and tests.
+the `...Err` variants such as `MainFromInjectedProjectErr`,
+`ConfigFromInjectedProjectErr`, and `ExporterInfoFromProjectMetadataErr`.
+Helpers without the `Err` suffix are fail-fast convenience APIs for generated
+main packages and tests.
 
 `SmokeSpec.ServerArgs` is the supported place for smoke-only flag overrides,
 including short refresh intervals or local config-file paths. Those values are
@@ -175,7 +184,7 @@ Each exporter can become a thin concrete repository:
 - `prometheus-demo-exporter`
   - place specific code at `internal/*`
   - exposes a feature that registers
-  - `main.go` only calls `framework.MainFromProject(...)` or `framework.MainForProject(...)`
+  - `cmd/scaffold_main.go` calls the scaffold-owned internal exporter bridge
 
 Add this framework module as a dependency:
 

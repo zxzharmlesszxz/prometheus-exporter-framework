@@ -193,15 +193,6 @@ func TestRunCLIReturnsInvalidDefaultListenAddressError(t *testing.T) {
 	}
 }
 
-func TestRunCLIFromProjectReturnsParseError(t *testing.T) {
-	preserveVersionMetadata(t)
-
-	err := RunCLIFromProject([]string{"--not-a-real-flag"})
-	if err == nil {
-		t.Fatal("RunCLIFromProject() error = nil, want parse error")
-	}
-}
-
 func preserveVersionMetadata(t *testing.T) {
 	t.Helper()
 
@@ -215,71 +206,7 @@ func preserveVersionMetadata(t *testing.T) {
 	})
 }
 
-func TestMainFromProjectUsesExecutableNameAndModuleMetadata(t *testing.T) {
-	preserveVersionMetadata(t)
-
-	originalArgs := os.Args
-	os.Args = []string{
-		"/usr/local/bin/custom-exporter-framework",
-		"--log.level=error",
-	}
-	t.Cleanup(func() {
-		os.Args = originalArgs
-	})
-
-	feature := featurepkg.CollectorFeature{
-		Name: "from_project",
-		CollectorsFunc: func(ctx FeatureContext) ([]prometheus.Collector, error) {
-			if ctx.Namespace != "exporter_framework" {
-				t.Fatalf("FeatureContext.Namespace = %q, want %q", ctx.Namespace, "exporter_framework")
-			}
-			return []prometheus.Collector{
-				newConstCollector(ctx.Namespace+"_from_project_value", "From project value", 4),
-			}, nil
-		},
-	}
-
-	called := false
-	stubListenAndServe(t, func(srv *http.Server, _ *web.FlagConfig, _ *slog.Logger) error {
-		called = true
-
-		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-		rec := httptest.NewRecorder()
-		srv.Handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("GET /metrics status = %d, want %d", rec.Code, http.StatusOK)
-		}
-		if !strings.Contains(rec.Body.String(), "exporter_framework_from_project_value 4") {
-			t.Fatalf("GET /metrics body missing feature metric: %s", rec.Body.String())
-		}
-
-		req = httptest.NewRequest(http.MethodGet, "/", nil)
-		rec = httptest.NewRecorder()
-		srv.Handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusOK)
-		}
-		body := rec.Body.String()
-		if !strings.Contains(body, "custom-exporter-framework") {
-			t.Fatalf("GET / body missing executable name: %s", body)
-		}
-		if !strings.Contains(body, "Prometheus Exporter Framework") {
-			t.Fatalf("GET / body missing description: %s", body)
-		}
-
-		return nil
-	})
-
-	if err := MainFromProject(feature); err != nil {
-		t.Fatalf("MainFromProject() error = %v", err)
-	}
-
-	if !called {
-		t.Fatal("listenAndServe was not called")
-	}
-}
-
-func TestMainForProject(t *testing.T) {
+func TestMainUsesExplicitConfig(t *testing.T) {
 	preserveVersionMetadata(t)
 
 	originalArgs := os.Args
@@ -338,13 +265,16 @@ func TestMainForProject(t *testing.T) {
 		return nil
 	})
 
-	if err := MainForProject(
-		"prometheus-custom-exporter",
-		"Prometheus Custom Exporter",
-		feature,
-		extraFeature,
-	); err != nil {
-		t.Fatalf("MainForProject() error = %v", err)
+	if err := Main(Config{
+		Name:        "custom-exporter",
+		Namespace:   "custom_exporter",
+		Description: "Prometheus Custom Exporter",
+		Features: []Feature{
+			feature,
+			extraFeature,
+		},
+	}); err != nil {
+		t.Fatalf("Main() error = %v", err)
 	}
 
 	if !called {

@@ -26,27 +26,8 @@ type cliConfig struct {
 func Main(cfg Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	cfg.Name = ExecutableName(os.Args, cfg.Name)
 	if err := RunCLIContext(ctx, cfg, os.Args[1:]); err != nil {
-		return err
-	}
-	return nil
-}
-
-func MainFromProject(features ...Feature) error {
-	cfg := ConfigFromProject(features...)
-	cfg.Name = ExecutableName(os.Args, cfg.Name)
-	if err := Main(cfg); err != nil {
-		return err
-	}
-	return nil
-}
-
-// MainForProject runs a concrete exporter with explicit project metadata.
-func MainForProject(projectName, description string, features ...Feature) error {
-	cfg := ConfigForProject(projectName, features...)
-	cfg.Name = ExecutableName(os.Args, cfg.Name)
-	cfg.Description = description
-	if err := Main(cfg); err != nil {
 		return err
 	}
 	return nil
@@ -64,10 +45,6 @@ func ExecutableName(args []string, fallback string) string {
 	}
 
 	return name
-}
-
-func RunCLIFromProject(args []string, features ...Feature) error {
-	return RunCLI(ConfigFromProject(features...), args)
 }
 
 func RunCLI(cfg Config, args []string) error {
