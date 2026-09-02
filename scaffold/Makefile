@@ -13,6 +13,7 @@ DEFAULT_PORT ?=
 FEATURE_CONFIG_FILE ?=
 TARGET_DIR ?= $(if $(PROJECT_NAME),rendered/$(PROJECT_NAME),)
 FILE ?=
+SKIP_FILE ?=
 ALLOW_DIRTY ?= 0
 SYMBOL_DIFF ?= 0
 ALL_FILES ?= 0
@@ -28,6 +29,7 @@ CHECK_FEATURE_CONFIG_FILE ?= $(CHECK_PROJECT_NAME).yml
 
 DRIFT_ALLOW_DIRTY := $(if $(filter 1 true yes,$(ALLOW_DIRTY)),--allow-dirty,)
 DRIFT_FILE_ARGS := $(foreach file,$(FILE),--file "$(file)")
+DRIFT_SKIP_FILE_ARGS := $(foreach file,$(SKIP_FILE),--skip-file "$(file)")
 DRIFT_SYMBOL_DIFF := $(if $(filter 1 true yes,$(SYMBOL_DIFF)),--symbol-diff,)
 DRIFT_ALL_FILES := $(if $(filter 1 true yes,$(ALL_FILES)),--all-files,)
 DOCKER_SMOKE_METRIC_ARG := $(if $(filter undefined,$(origin DOCKER_SMOKE_METRIC)),,--docker-smoke-metric "$(DOCKER_SMOKE_METRIC)")
@@ -121,7 +123,7 @@ new-exporter: require-project-name require-target-dir ## Render a new exporter. 
 		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
 		--target-dir "$(TARGET_DIR)"
 
-drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR, optionally FILE, ALL_FILES=1, and SYMBOL_DIFF=1.
+drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR, optionally FILE, SKIP_FILE, ALL_FILES=1, and SYMBOL_DIFF=1.
 	@scripts/scaffold-drift.sh \
 		--target-dir "$(TARGET_DIR)" \
 		$(if $(PROJECT_NAME),--project-name "$(PROJECT_NAME)",) \
@@ -138,12 +140,13 @@ drift-check: require-target-dir ## Check scaffold-managed files. Set TARGET_DIR,
 		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
 		$(DRIFT_SYMBOL_DIFF) \
 		$(DRIFT_ALL_FILES) \
+		$(DRIFT_SKIP_FILE_ARGS) \
 		$(DRIFT_FILE_ARGS)
 
 drift-check-all: require-target-dir ## Check every rendered scaffold file in an exporter. Set TARGET_DIR; use SYMBOL_DIFF=1 for Go symbol diffs.
 	@$(MAKE) --no-print-directory drift-check TARGET_DIR="$(TARGET_DIR)" ALL_FILES=1 SYMBOL_DIFF="$(SYMBOL_DIFF)" GO="$(GO)" GOFMT="$(GOFMT)"
 
-drift-sync: require-target-dir ## Sync scaffold-managed files into an existing exporter. Set TARGET_DIR; use ALLOW_DIRTY=1 to permit dirty managed files.
+drift-sync: require-target-dir ## Sync scaffold-managed files into an existing exporter. Set TARGET_DIR; use SKIP_FILE and ALLOW_DIRTY=1 as needed.
 	@scripts/scaffold-drift.sh \
 		--target-dir "$(TARGET_DIR)" \
 		--sync \
@@ -160,6 +163,7 @@ drift-sync: require-target-dir ## Sync scaffold-managed files into an existing e
 		$(DOCKER_SMOKE_RUN_OPTIONS_ARG) \
 		$(DOCKER_SMOKE_EXPORTER_ARGS_ARG) \
 		$(DOCKER_SMOKE_EXTRA_METRICS_ARG) \
+		$(DRIFT_SKIP_FILE_ARGS) \
 		$(DRIFT_FILE_ARGS)
 
 drift-list-files: ## List the default scaffold-managed files used by drift-check/drift-sync.

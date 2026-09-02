@@ -20,6 +20,9 @@ SCAFFOLD_MAKEFILE ?= scaffold/Makefile
 .PHONY: help fmt fmt-check vet staticcheck govulncheck golangci-lint test test-race coverage coverage-check smoke check clean
 .PHONY: mod-tidy deps-update framework-mod-tidy framework-deps-update
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
+.PHONY: scaffold-help scaffold-scripts-check scaffold-tools-check scaffold-symbol-diff-check scaffold-render-check
+.PHONY: scaffold-check scaffold-check-local scaffold-check-pinned scaffold-template-mod-tidy scaffold-template-deps-update
+.PHONY: scaffold-new-exporter scaffold-drift-check scaffold-drift-check-all scaffold-drift-sync scaffold-drift-list-files scaffold-clean
 .PHONY: FORCE
 
 help: ## Show available make targets.
@@ -114,6 +117,54 @@ check: fmt-check vet staticcheck golangci-lint govulncheck coverage-check smoke 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)
 	@$(MAKE) -C scaffold clean
+
+scaffold-help: ## Show scaffold make targets.
+	@$(MAKE) -C scaffold help
+
+scaffold-scripts-check: ## Check scaffold shell scripts.
+	@$(MAKE) -C scaffold scripts-check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-tools-check: ## Check scaffold local tools.
+	@$(MAKE) -C scaffold tools-check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-symbol-diff-check: ## Check scaffold symbol diff helper.
+	@$(MAKE) -C scaffold symbol-diff-check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-render-check: ## Render demo exporter and run scaffold checks.
+	@$(MAKE) -C scaffold render-check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-check: ## Run scaffold self-checks.
+	@$(MAKE) -C scaffold check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-check-local: ## Check rendered scaffold against local framework checkout.
+	@$(MAKE) -C scaffold check-local GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-check-pinned: ## Check rendered scaffold against pinned framework dependency.
+	@$(MAKE) -C scaffold check-pinned GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-template-mod-tidy: ## Run go mod tidy for the scaffold template module.
+	@$(MAKE) -C scaffold template-mod-tidy GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-template-deps-update: ## Update scaffold template dependencies.
+	@$(MAKE) -C scaffold template-deps-update GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-new-exporter: ## Render a new exporter through scaffold.
+	@$(MAKE) -C scaffold new-exporter GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-drift-check: ## Check scaffold-managed files in an exporter.
+	@$(MAKE) -C scaffold drift-check GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-drift-check-all: ## Check every rendered scaffold file in an exporter.
+	@$(MAKE) -C scaffold drift-check-all GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-drift-sync: ## Sync scaffold-managed files into an exporter.
+	@$(MAKE) -C scaffold drift-sync GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-drift-list-files: ## List scaffold-managed files.
+	@$(MAKE) -C scaffold drift-list-files GO="$(GO)" GOFMT="$(GOFMT)"
+
+scaffold-clean: ## Remove scaffold local generated artifacts.
+	@$(MAKE) -C scaffold clean GO="$(GO)" GOFMT="$(GOFMT)"
 
 scaffold-%: FORCE
 	@$(MAKE) -C scaffold $* GO="$(GO)" GOFMT="$(GOFMT)"

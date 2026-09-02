@@ -9,13 +9,15 @@ This directory owns generated-repository shape:
 - placeholder exporter feature
 - typed snapshot collector wiring
 - shared feature test suite usage
-- example Prometheus, Grafana, and Docker Compose files
+- starter Prometheus, Grafana, and Docker Compose example files
 - GitHub Actions reusable-workflow wrapper and GitLab CI starter workflow
 - Dependabot starter configuration
 - rendering script
 
 Exporter runtime behavior belongs in the framework packages; generated-project
-boilerplate belongs here.
+boilerplate belongs here. Rendered starter examples become concrete
+exporter-owned domain examples after generation unless they are explicitly
+listed as scaffold-managed files.
 
 ## Render A New Exporter
 
@@ -122,15 +124,31 @@ make drift-sync TARGET_DIR=../prometheus-demo-exporter
 ```
 
 The default managed set is intentionally conservative: CI files, ignore files,
-`cmd/scaffold_main.go`, Dependabot config, `Makefile`, `Makefile.mk`, and the
-thin scaffold-owned adapter in `internal/exporter/scaffold_exporter.go`. It also
-includes the thin feature assembly file, shared feature test suite core, and
-binary smoke test under `scaffold_*.go` names.
+`cmd/scaffold_main.go`, Dependabot config, `Dockerfile`, `Makefile`,
+`Makefile.mk`, and the thin scaffold-owned adapter in
+`internal/exporter/scaffold_exporter.go`. It also includes the thin feature
+assembly file, shared feature test suite core, and binary smoke test under
+`scaffold_*.go` names.
+Rendered files under `examples/`, domain dashboards, Prometheus alert rules,
+Prometheus rule tests, and exporter documentation are concrete exporter-owned
+after generation and are not part of the default managed set.
 Those Go files are fully scaffold-owned and should not be edited in concrete
 exporters. The stable feature contract itself lives in framework `featurekit`.
+Generated Docker images copy the rendered project binary to
+`/usr/local/bin/<project-name>` and use that rendered path as the container
+entrypoint. The name is fixed at render time and is not a build-time override;
+project identity is still injected through linker metadata and exposed through
+`--version` and `*_build_info`.
+Rendered identity and scaffold defaults are intentionally fixed in
+`Makefile.mk`: module paths, project metadata, feature names, namespaces,
+default port, feature config path, coverage output filenames, and Docker
+smoke-test contract values belong to the generated exporter contract. Keep
+per-run overrides for tooling and build integration values such as `GO`,
+`GOFMT`, `VERSION`, `REVISION`, `BUILD_DATE`, `LDFLAGS`, `BUILD_OUTPUT`,
+`DOCKER_IMAGE`, Compose image tags, and local Grafana credentials.
 Concrete exporters keep domain logic in adjacent feature-package files and the
-feature check package, so inspect those files separately instead of blindly
-syncing them:
+feature check package. Do not sync domain-owned files from scaffold unless you
+are intentionally resetting that exporter-specific logic:
 
 `feature_config_ext.go` owns the feature-specific `Config`, defaults, flag
 specs, config validation, config-file merge behavior, and runtime config entries
@@ -142,12 +160,21 @@ register exporter-specific checks from `feature_test_suite_ext_test.go`.
 Existing exporter test files can be migrated into that extension file instead
 of editing scaffold-owned test code.
 
+Targeted checks for scaffold-owned files are safe migration checks:
+
 ```bash
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=Makefile
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=Dockerfile
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/exporter/scaffold_exporter.go
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/scaffold_feature.go
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/scaffold_feature_test_suite_test.go
+```
+
+Targeted checks for domain-owned starter files are diagnostic only. They can
+show how far a concrete exporter has moved away from the original skeleton, but
+their output should not be treated as required drift:
+
+```bash
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/snapshot_types.go
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/metrics.go
 make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/feature_config_ext.go
@@ -160,6 +187,20 @@ make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=internal/demo/featu
 Use `ALLOW_DIRTY=1` with `make drift-sync` when you intentionally want to sync
 over already modified managed files. `make drift-list-files` prints the default
 managed set.
+
+Use `SKIP_FILE` for intentional scaffold-managed deviations. For example, an
+exporter with a domain-specific Docker runtime can sync the rest of the
+scaffold-owned files without overwriting its Dockerfile:
+
+```bash
+make drift-sync TARGET_DIR=../prometheus-demo-exporter SKIP_FILE=Dockerfile
+```
+
+Run a targeted check before intentionally syncing such a file:
+
+```bash
+make drift-check TARGET_DIR=../prometheus-demo-exporter FILE=Dockerfile
+```
 
 New exporters include starter domain files such as `internal/<feature>/snapshot_types.go`
 and `internal/<feature>check/*`. They are rendered by scaffold, but they are not

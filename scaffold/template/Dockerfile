@@ -1,33 +1,40 @@
-ARG PROJECT_NAME=exporter
-
-FROM golang:1.27.0 AS build
+FROM golang:1.27.0-alpine3.24 AS build
 
 WORKDIR /src
 
-ARG PROJECT_NAME
 ARG LDFLAGS
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDER_PACKAGES="make=4.4.1-r4"
+
+RUN apk add --no-cache ${BUILDER_PACKAGES}
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 RUN make build \
+    BUILD_OUTPUT=dist/__PROJECT_NAME__ \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH} \
     ${LDFLAGS:+LDFLAGS="${LDFLAGS}"}
 
-FROM debian:bookworm-slim
+FROM alpine:3.24 AS base
 
-ARG PROJECT_NAME
+ARG RUNTIME_PACKAGES="ca-certificates=20260611-r0 libcrypto3=3.5.8-r0 libssl3=3.5.8-r0"
+RUN apk add --no-cache ${RUNTIME_PACKAGES}
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM base
 
-COPY --from=build /src/dist/${PROJECT_NAME} /usr/local/bin/exporter
+COPY --from=build /src/dist/__PROJECT_NAME__ /usr/local/bin/__PROJECT_NAME__
 
 EXPOSE __DEFAULT_PORT__
 
 USER nobody
 
-ENTRYPOINT ["/usr/local/bin/exporter"]
+ENV HEALTHCHECK_URL=http://127.0.0.1:__DEFAULT_PORT__/healthz
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget -q -T 2 --spider "${HEALTHCHECK_URL}" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/__PROJECT_NAME__"]

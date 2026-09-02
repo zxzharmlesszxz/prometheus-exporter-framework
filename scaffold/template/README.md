@@ -33,6 +33,10 @@ Runtime config can always be overridden with another `--__FEATURE_NAME__.config-
 If that config file cannot be parsed or resolved, startup runtime config logs
 include `config_error` with the concrete failure.
 Data refresh runs through the framework snapshot collector in a background worker; scrapes return the last collected snapshot.
+After rendering, files under `examples/`, domain dashboards, Prometheus alert
+rules, Prometheus rule tests, and exporter documentation are owned by this
+concrete exporter. Scaffold drift checks intentionally do not sync those files
+by default.
 
 ## Metrics
 
@@ -82,6 +86,9 @@ Endpoints:
 Compose uses pinned Prometheus and Grafana images by default. Override
 `PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `GRAFANA_ADMIN_USER`, or
 `GRAFANA_ADMIN_PASSWORD` when testing another version or local credentials.
+Exporter identity, feature names, namespaces, default port, config-file path,
+coverage report filenames, and Docker smoke-test contract values are owned by
+the rendered scaffold and are not intended to be overridden per run.
 
 ## Grafana
 

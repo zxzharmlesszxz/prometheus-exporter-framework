@@ -44,12 +44,14 @@ Render metadata overrides:
 
 File selection:
   --file PATH            Compare/sync this rendered path. Can be repeated.
+  --skip-file PATH       Skip this rendered path. Can be repeated.
   --all-files            Check every file rendered by the scaffold. Check-only;
                          refused with --sync to avoid overwriting feature code.
   --list-files           Print the default managed file list and exit.
 
 Default managed files:
   LICENSE
+  Dockerfile
   Makefile
   Makefile.mk
   docker-compose.yml
@@ -76,7 +78,9 @@ exporter arguments, and extra metric checks belong in Makefile.mk variables.
 docker-compose.yml should stay scaffold-managed. Domain-specific Compose
 commands, mounts, configs, and local example wiring belong in
 docker-compose.override.yml.
-Dockerfiles can also be domain-specific when exporters need runtime packages.
+Dockerfile stays scaffold-managed by default. Exporters that need extra runtime
+packages should keep that deviation explicit and review Dockerfile drift before
+syncing.
 Generated Go files named scaffold_*.go are fully scaffold-owned. Do not edit
 them in concrete exporters; add feature behavior in adjacent non-scaffold files.
 Legacy exporters may still keep older scaffold-owned files under
@@ -135,12 +139,14 @@ docker_smoke_run_options_set=0
 docker_smoke_exporter_args_set=0
 docker_smoke_extra_metrics_set=0
 custom_files=()
+skip_files=()
 symbol_diff=0
 all_files=0
 framework_module="github.com/zxzharmlesszxz/prometheus-exporter-framework"
 
 default_files=(
   "LICENSE"
+  "Dockerfile"
   "Makefile"
   "Makefile.mk"
   "docker-compose.yml"
@@ -325,6 +331,11 @@ while [[ $# -gt 0 ]]; do
       custom_files+=("${2:-}")
       shift 2
       ;;
+    --skip-file)
+      require_value "$@"
+      skip_files+=("${2:-}")
+      shift 2
+      ;;
     --all-files|--all-rendered-files)
       all_files=1
       shift
@@ -467,8 +478,8 @@ detect_project_name() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
     [[ -f "$file" ]] || continue
-    value="$(awk -F '\\?=' '
-      /^[[:space:]]*PROJECT_NAME[[:space:]]*\?=/ {
+    value="$(awk -F '(:=|\\?=)' '
+      /^[[:space:]]*(override[[:space:]]+)?PROJECT_NAME[[:space:]]*(\?=|:=)/ {
         value = $2
         sub(/^[[:space:]]*/, "", value)
         sub(/[[:space:]]*$/, "", value)
@@ -517,8 +528,8 @@ detect_exporter_description() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
     [[ -f "$file" ]] || continue
-    value="$(awk -F '\\?=' '
-      /^[[:space:]]*PROJECT_DESC[[:space:]]*\?=/ {
+    value="$(awk -F '(:=|\\?=)' '
+      /^[[:space:]]*(override[[:space:]]+)?PROJECT_DESC[[:space:]]*(\?=|:=)/ {
         value = $2
         sub(/^[[:space:]]*/, "", value)
         sub(/[[:space:]]*$/, "", value)
@@ -561,8 +572,8 @@ detect_feature_name() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
     [[ -f "$file" ]] || continue
-    value="$(awk -F '\\?=' '
-      /^[[:space:]]*FEATURE_NAME[[:space:]]*\?=/ {
+    value="$(awk -F '(:=|\\?=)' '
+      /^[[:space:]]*(override[[:space:]]+)?FEATURE_NAME[[:space:]]*(\?=|:=)/ {
         value = $2
         sub(/^[[:space:]]*/, "", value)
         sub(/[[:space:]]*$/, "", value)
@@ -621,8 +632,8 @@ detect_default_port() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
     [[ -f "$file" ]] || continue
-    value="$(awk -F '\\?=' '
-      /^[[:space:]]*DEFAULT_PORT[[:space:]]*\?=/ {
+    value="$(awk -F '(:=|\\?=)' '
+      /^[[:space:]]*(override[[:space:]]+)?DEFAULT_PORT[[:space:]]*(\?=|:=)/ {
         value = $2
         sub(/^[[:space:]]*/, "", value)
         sub(/[[:space:]]*$/, "", value)
@@ -696,8 +707,8 @@ detect_namespace() {
   local file value
   for file in "$target_dir/Makefile.mk" "$target_dir/Makefile"; do
     [[ -f "$file" ]] || continue
-    value="$(awk -F '\\?=' '
-      /^[[:space:]]*METRIC_NAMESPACE[[:space:]]*\?=/ {
+    value="$(awk -F '(:=|\\?=)' '
+      /^[[:space:]]*(override[[:space:]]+)?METRIC_NAMESPACE[[:space:]]*(\?=|:=)/ {
         value = $2
         sub(/^[[:space:]]*/, "", value)
         sub(/[[:space:]]*$/, "", value)
@@ -730,8 +741,8 @@ detect_namespace() {
 detect_makefile_mk_var() {
   local name="$1"
   [[ -f "$target_dir/Makefile.mk" ]] || return 0
-  awk -v name="$name" -F '\\?=' '
-    $1 ~ "^[[:space:]]*" name "[[:space:]]*$" {
+  awk -v name="$name" -F '(:=|\\?=)' '
+    $1 ~ "^[[:space:]]*(override[[:space:]]+)?" name "[[:space:]]*$" {
       value = $2
       sub(/^[[:space:]]*/, "", value)
       sub(/[[:space:]]*$/, "", value)
@@ -741,11 +752,19 @@ detect_makefile_mk_var() {
   ' "$target_dir/Makefile.mk"
 }
 
+normalize_makefile_mk_empty_value() {
+  local value="$1"
+  if [[ "$value" == "\$(SCAFFOLD_EMPTY)" ]]; then
+    value=""
+  fi
+  printf '%s' "$value"
+}
+
 makefile_mk_var_defined() {
   local name="$1"
   [[ -f "$target_dir/Makefile.mk" ]] || return 1
-  awk -v name="$name" -F '\\?=' '
-    $1 ~ "^[[:space:]]*" name "[[:space:]]*$" {
+  awk -v name="$name" -F '(:=|\\?=)' '
+    $1 ~ "^[[:space:]]*(override[[:space:]]+)?" name "[[:space:]]*$" {
       found = 1
       exit
     }
@@ -1108,7 +1127,7 @@ if [[ "$docker_smoke_exporter_args_set" -eq 0 ]]; then
   docker_smoke_exporter_args_set=1
 fi
 if [[ "$docker_smoke_extra_metrics_set" -eq 0 ]] && makefile_mk_var_defined "DOCKER_SMOKE_EXTRA_METRICS"; then
-  docker_smoke_extra_metrics="$(detect_makefile_mk_var "DOCKER_SMOKE_EXTRA_METRICS")"
+  docker_smoke_extra_metrics="$(normalize_makefile_mk_empty_value "$(detect_makefile_mk_var "DOCKER_SMOKE_EXTRA_METRICS")")"
   docker_smoke_extra_metrics_set=1
 fi
 if [[ "$docker_smoke_extra_metrics_set" -eq 0 ]]; then
@@ -1122,6 +1141,19 @@ for file in "${managed_files[@]}"; do
   resolved_managed_files+=("${file//__FEATURE_CONFIG_FILE__/$feature_config_file}")
 done
 managed_files=("${resolved_managed_files[@]}")
+
+resolved_skip_files=()
+if [[ "${#skip_files[@]}" -gt 0 ]]; then
+  for file in "${skip_files[@]}"; do
+    file="${file//__FEATURE_NAME__/$feature_name}"
+    resolved_skip_files+=("${file//__FEATURE_CONFIG_FILE__/$feature_config_file}")
+  done
+fi
+if [[ "${#resolved_skip_files[@]}" -gt 0 ]]; then
+  skip_files=("${resolved_skip_files[@]}")
+else
+  skip_files=()
+fi
 
 resolved_obsolete_files=()
 if [[ "${#managed_obsolete_files[@]}" -gt 0 ]]; then
@@ -1191,6 +1223,44 @@ if [[ "$all_files" -eq 1 ]]; then
     cd "$rendered_dir"
     find . -type f -print | sed 's#^\./##' | sort
   )
+fi
+
+is_skipped_file() {
+  local candidate="$1"
+  local skip_file
+  for skip_file in "${skip_files[@]}"; do
+    if [[ "$candidate" == "$skip_file" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ "${#skip_files[@]}" -gt 0 ]]; then
+  filtered_managed_files=()
+  for file in "${managed_files[@]}"; do
+    if ! is_skipped_file "$file"; then
+      filtered_managed_files+=("$file")
+    fi
+  done
+  if [[ "${#filtered_managed_files[@]}" -gt 0 ]]; then
+    managed_files=("${filtered_managed_files[@]}")
+  else
+    managed_files=()
+  fi
+  if [[ "${#managed_obsolete_files[@]}" -gt 0 ]]; then
+    filtered_obsolete_files=()
+    for file in "${managed_obsolete_files[@]}"; do
+      if ! is_skipped_file "$file"; then
+        filtered_obsolete_files+=("$file")
+      fi
+    done
+    if [[ "${#filtered_obsolete_files[@]}" -gt 0 ]]; then
+      managed_obsolete_files=("${filtered_obsolete_files[@]}")
+    else
+      managed_obsolete_files=()
+    fi
+  fi
 fi
 
 symbol_diff_go() {

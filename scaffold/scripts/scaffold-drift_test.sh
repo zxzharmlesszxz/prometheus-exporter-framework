@@ -17,6 +17,7 @@ grep -F "scaffold template must be rendered before running build targets" "$tmp/
 
 "$repo_dir/scripts/scaffold-drift.sh" --list-files >"$tmp/list-files.out"
 grep -Fx "Makefile" "$tmp/list-files.out" >/dev/null
+grep -Fx "Dockerfile" "$tmp/list-files.out" >/dev/null
 grep -Fx ".dockerignore" "$tmp/list-files.out" >/dev/null
 grep -Fx "internal/__FEATURE_NAME__/scaffold_feature.go" "$tmp/list-files.out" >/dev/null
 
@@ -35,17 +36,59 @@ if grep -R -n -E '__[A-Z0-9_]+__' "$target_dir"; then
   echo "rendered exporter still contains scaffold placeholders" >&2
   exit 1
 fi
+grep -F "BUILD_OUTPUT=dist/prometheus-demo-exporter" "$target_dir/Dockerfile" >/dev/null
+grep -F "FROM alpine:3.24 AS base" "$target_dir/Dockerfile" >/dev/null
+grep -F 'ARG RUNTIME_PACKAGES="ca-certificates=20260611-r0 libcrypto3=3.5.8-r0 libssl3=3.5.8-r0"' "$target_dir/Dockerfile" >/dev/null
+grep -F "FROM base" "$target_dir/Dockerfile" >/dev/null
+grep -F "COPY --from=build /src/dist/prometheus-demo-exporter /usr/local/bin/prometheus-demo-exporter" "$target_dir/Dockerfile" >/dev/null
+grep -F 'ENTRYPOINT ["/usr/local/bin/prometheus-demo-exporter"]' "$target_dir/Dockerfile" >/dev/null
 
 printf '%s\n' \
   'include Makefile' \
   'print-vars:' \
-  '	@printf "%s\n" "DOCKER_PROJECT_NAME=$(DOCKER_PROJECT_NAME)" "COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)" "COMPOSE_FEATURE_NAME=$(COMPOSE_FEATURE_NAME)" "COMPOSE_EXPORTER_PORT=$(COMPOSE_EXPORTER_PORT)"' \
+  '	@printf "%s\n" "GO_MODULE=$(GO_MODULE)" "FRAMEWORK_MODULE=$(FRAMEWORK_MODULE)" "PROJECT_NAME=$(PROJECT_NAME)" "FEATURE_NAME=$(FEATURE_NAME)" "FEATURE_NAMESPACE=$(FEATURE_NAMESPACE)" "METRIC_NAMESPACE=$(METRIC_NAMESPACE)" "DEFAULT_PORT=$(DEFAULT_PORT)" "FEATURE_CONFIG_FILE=$(FEATURE_CONFIG_FILE)" "DOCKER_ENTRYPOINT_NAME=$(DOCKER_ENTRYPOINT_NAME)" "DOCKER_SMOKE_PORT=$(DOCKER_SMOKE_PORT)" "DOCKER_PROJECT_NAME=$(DOCKER_PROJECT_NAME)" "COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)" "COMPOSE_FEATURE_NAME=$(COMPOSE_FEATURE_NAME)" "COMPOSE_EXPORTER_PORT=$(COMPOSE_EXPORTER_PORT)"' \
   >"$tmp/rendered-vars.mk"
 make -C "$target_dir" --no-print-directory -f "$tmp/rendered-vars.mk" print-vars >"$tmp/rendered-make-vars.out"
+grep -Fx "GO_MODULE=github.com/zxzharmlesszxz/prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "FRAMEWORK_MODULE=github.com/zxzharmlesszxz/prometheus-exporter-framework" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "FEATURE_NAME=demo" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "FEATURE_NAMESPACE=demo" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "METRIC_NAMESPACE=demo_exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "DEFAULT_PORT=:9888" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "FEATURE_CONFIG_FILE=prometheus-demo-exporter.yml" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "DOCKER_ENTRYPOINT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "DOCKER_SMOKE_PORT=9900" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "DOCKER_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "COMPOSE_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "COMPOSE_FEATURE_NAME=demo" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "COMPOSE_EXPORTER_PORT=9888" "$tmp/rendered-make-vars.out" >/dev/null
+if grep -n '[[:space:]]$' "$target_dir/Makefile.mk" >"$tmp/rendered-makefile-whitespace.out"; then
+  cat "$tmp/rendered-makefile-whitespace.out" >&2
+  exit 1
+fi
+make -C "$target_dir" --no-print-directory -f "$tmp/rendered-vars.mk" \
+  GO_MODULE=github.com/example/wrong \
+  FRAMEWORK_MODULE=github.com/example/wrong-framework \
+  PROJECT_NAME=wrong \
+  FEATURE_NAME=wrong \
+  FEATURE_NAMESPACE=wrong \
+  METRIC_NAMESPACE=wrong \
+  DEFAULT_PORT=:1 \
+  FEATURE_CONFIG_FILE=wrong.yml \
+  DOCKER_ENTRYPOINT_NAME=wrong \
+  DOCKER_SMOKE_PORT=1 \
+  print-vars >"$tmp/rendered-make-override-vars.out"
+grep -Fx "GO_MODULE=github.com/zxzharmlesszxz/prometheus-demo-exporter" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "FRAMEWORK_MODULE=github.com/zxzharmlesszxz/prometheus-exporter-framework" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "FEATURE_NAME=demo" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "FEATURE_NAMESPACE=demo" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "METRIC_NAMESPACE=demo_exporter" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "DEFAULT_PORT=:9888" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "FEATURE_CONFIG_FILE=prometheus-demo-exporter.yml" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "DOCKER_ENTRYPOINT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-override-vars.out" >/dev/null
+grep -Fx "DOCKER_SMOKE_PORT=9900" "$tmp/rendered-make-override-vars.out" >/dev/null
 
 grep -F "uses: zxzharmlesszxz/prometheus-exporter-framework/.github/workflows/exporter-ci.yml@v" \
   "$target_dir/.github/workflows/ci.yml" >/dev/null
@@ -60,6 +103,18 @@ git -C "$target_dir" \
 "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --file Makefile >/dev/null
 "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --file Makefile >/dev/null
 "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --all-files >/dev/null
+
+printf '\n# domain runtime package deviation\n' >> "$target_dir/Dockerfile"
+if "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --file Dockerfile >"$tmp/dockerfile-drift.out" 2>&1; then
+  echo "drift-check passed after Dockerfile drift" >&2
+  exit 1
+fi
+grep -F "DRIFT   Dockerfile" "$tmp/dockerfile-drift.out" >/dev/null
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --skip-file Dockerfile >/dev/null
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --allow-dirty --skip-file Dockerfile >/dev/null
+grep -F "# domain runtime package deviation" "$target_dir/Dockerfile" >/dev/null
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --allow-dirty --file Dockerfile >/dev/null
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --file Dockerfile >/dev/null
 
 printf '\n# local drift\n' >> "$target_dir/Makefile"
 

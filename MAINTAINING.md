@@ -20,6 +20,9 @@ CI also runs scaffold compatibility by rendering a demo exporter from the local
 `scaffold/` template against the current framework checkout, checking for
 unresolved placeholders, checking generated module-file tidiness, and running
 the generated exporter's Go-only checks.
+Scaffold drift checks should stay limited to scaffold-owned files by default.
+Rendered `examples/`, dashboards, alert rules, rule tests, and exporter docs are
+concrete exporter-owned after generation.
 
 Concrete exporter scaffolding lives in `scaffold/` in this repository. The
 release workflow verifies both the framework and the local scaffold template
@@ -64,7 +67,9 @@ Before tagging:
 - Evaluate CI security hardening further: decide whether GitHub Actions should
   be pinned by SHA in root workflows and/or the scaffold template.
 - Keep `scaffold-drift.sh` changes conservative until edge cases around legacy
-  exporters and feature-owned files have broader regression coverage.
+  exporters and feature-owned files have broader regression coverage. Current
+  coverage includes default-managed Dockerfile drift and explicit `SKIP_FILE`
+  escape hatches for intentional domain-specific deviations.
 
 ## Version Metadata
 
