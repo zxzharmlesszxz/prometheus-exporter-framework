@@ -217,9 +217,9 @@ jobs:
         run: |
           output="$(docker run --rm ${{ inputs.project-name }}:release-check --version 2>&1)"
           echo "${output}"
-          echo "${output}" | grep -E "version[ =:]+${GITHUB_REF_NAME}(,| |$)" >/dev/null
-          echo "${output}" | grep -E "branch[ =:]+${GITHUB_REF_NAME}(,| |$)" >/dev/null
-          echo "${output}" | grep -E "revision[ =:]+${{ steps.docker-meta.outputs.revision }}(,| |$)" >/dev/null
+          echo "${output}" | grep -E "version[ =:]+${GITHUB_REF_NAME}([[:space:],)]|$)" >/dev/null
+          echo "${output}" | grep -E "branch[ =:]+${GITHUB_REF_NAME}([[:space:],)]|$)" >/dev/null
+          echo "${output}" | grep -E "revision[ =:]+${{ steps.docker-meta.outputs.revision }}([[:space:],)]|$)" >/dev/null
 
       - name: Scan Docker Image
         uses: aquasecurity/trivy-action@v0.36.0
