@@ -143,6 +143,7 @@ Concrete exporters can reuse small metric helpers instead of carrying local copi
 - `FileMTimeSeconds(path)` for fractional file mtime gauges that return `0` when the file cannot be statted
 - `FileScrapeMetrics` for file-backed collectors that expose labeled mtime, up, valid, scrape duration, and read/parse metrics
 - `featurekit.FileScrapeMetricSpecs(source, labels)` for the matching source-health descriptor contract in scaffolded feature metrics
+- `featurekit.NewTTLCache[K, V](ttl)` for thread-safe feature-owned lookup caches; use `SetWithTTL` when individual entries need value-specific TTLs
 - `NormalizeDuration(value, fallback)` for duration flags where non-positive values should fall back to defaults
 - `RegisterAndStartCollectors(ctx, registry, collectors...)` for collectors with a background `Start(context.Context)` lifecycle
 
@@ -247,9 +248,14 @@ make check
 ```
 
 `make check` runs formatting checks, `go vet`, `staticcheck`, `golangci-lint`,
-`govulncheck`, coverage threshold checks, binary smoke tests, and race tests. The
-coverage pass runs `go test ./...`, which includes public API golden checks; use
+`govulncheck`, generated reference documentation checks, coverage threshold
+checks, binary smoke tests, and race tests. The coverage pass runs
+`go test ./...`, which includes public API golden checks; use
 `make public-api-check` for targeted public API verification.
+
+`make docs-generate` regenerates `docs/reference.md` from Make targets,
+scaffold-managed file lists, scaffold metadata, and public API golden files.
+`make docs-check` fails when that generated reference documentation is stale.
 
 `make coverage-check` enforces `COVERAGE_THRESHOLD`, which defaults to `90.0`.
 Override it when needed:
@@ -268,7 +274,9 @@ changes intentionally, run `make public-api-update` and review the
 `testdata/public_api.txt` diffs. The AST walker lives in
 `exporter/internal/publicapitest`; keep guard behavior changes there so every
 public package uses the same rules. Commit the golden-file changes together with
-the code change.
+the code change. If the public API or scaffold contract changes, run
+`make docs-generate` and commit the generated documentation diff with the
+related code change.
 
 `make smoke` builds the binary with injected version metadata, checks `--version`,
 verifies telemetry-path validation, and probes `/healthz` plus `/metrics`.

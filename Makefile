@@ -10,6 +10,7 @@ GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lin
 COVERAGE_PROFILE ?= coverage.out
 COVERAGE_REPORT ?= coverage.txt
 COVERAGE_THRESHOLD ?= 90.0
+DOCS_REFERENCE ?= docs/reference.md
 SMOKE_VERSION ?= v9.8.7
 SMOKE_BRANCH ?= smoke-branch
 SMOKE_REVISION ?= abc123def
@@ -18,6 +19,7 @@ SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 SCAFFOLD_MAKEFILE ?= scaffold/Makefile
 
 .PHONY: help fmt fmt-check vet staticcheck govulncheck golangci-lint test test-race coverage coverage-check smoke check clean
+.PHONY: docs-generate docs-check
 .PHONY: mod-tidy deps-update framework-mod-tidy framework-deps-update
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
 .PHONY: scaffold-help scaffold-scripts-check scaffold-tools-check scaffold-symbol-diff-check scaffold-render-check
@@ -95,6 +97,12 @@ public-api-update: exporter-public-api-update featurekit-public-api-update expor
 
 public-api-check: exporter-public-api-check featurekit-public-api-check exportertest-public-api-check ## Check public API golden files.
 
+docs-generate: ## Regenerate framework and scaffold reference documentation.
+	$(GO) run ./internal/docsgen -output "$(DOCS_REFERENCE)"
+
+docs-check: ## Check generated reference documentation.
+	$(GO) run ./internal/docsgen -output "$(DOCS_REFERENCE)" -check
+
 coverage: ## Run tests with coverage and write coverage reports.
 	$(GO) test ./... -covermode=atomic -coverprofile=$(COVERAGE_PROFILE)
 	$(GO) tool cover -func=$(COVERAGE_PROFILE) | tee $(COVERAGE_REPORT)
@@ -112,7 +120,7 @@ coverage-check: coverage ## Enforce the coverage threshold.
 smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" $(GO) test ./smoke -run TestBinarySmoke -count=1
 
-check: fmt-check vet staticcheck golangci-lint govulncheck coverage-check smoke test-race ## Run the standard maintenance check.
+check: fmt-check vet staticcheck golangci-lint govulncheck docs-check coverage-check smoke test-race ## Run the standard maintenance check.
 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)

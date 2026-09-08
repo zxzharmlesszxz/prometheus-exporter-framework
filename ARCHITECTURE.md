@@ -123,7 +123,7 @@ and exposes `FeatureSpec`, `Feature`, `FeatureDefaults`, `FeatureContract`,
 `SmokeSpec`, `SmokeContext`, `SnapshotCollectorOptions`,
 `ResolveSnapshotCollectorOptions`, `NewSnapshotCollector`, config-file and
 config-flag helpers, snapshot extension helpers, feature metric spec helpers,
-file scrape metric helpers, and the exported methods on those types.
+file scrape metric helpers, `TTLCache`, and the exported methods on those types.
 Public API golden checks also track exported fields and interface methods for
 types defined directly in public packages, plus type alias targets and exported
 members exposed through root facade aliases to local internal types. The shared

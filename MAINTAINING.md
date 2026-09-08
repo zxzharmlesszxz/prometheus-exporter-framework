@@ -13,9 +13,13 @@ make check
 ```
 
 `make check` runs formatting checks, `go vet`, `staticcheck`, `golangci-lint`,
-`govulncheck`, coverage threshold checks, binary smoke tests, and race tests. The
-coverage pass runs `go test ./...`, which includes public API golden checks; use
+`govulncheck`, generated reference documentation checks, coverage threshold
+checks, binary smoke tests, and race tests. The coverage pass runs
+`go test ./...`, which includes public API golden checks; use
 `make public-api-check` for targeted public API verification.
+Use `make docs-generate` after changing public API, scaffold-managed file lists,
+Make targets, or scaffold metadata; `make docs-check` enforces
+`docs/reference.md`.
 CI also runs scaffold compatibility by rendering a demo exporter from the local
 `scaffold/` template against the current framework checkout, checking for
 unresolved placeholders, checking generated module-file tidiness, and running
