@@ -111,6 +111,59 @@ For a feature namespace `<feature_namespace>` and source name `<source>`, use:
 - Value: cumulative total number of source parse or validity errors
 - Labels: exporter-defined, commonly `source` or `path`
 
+## Feature Cache Pattern
+
+The framework does not register cache metrics automatically. Features that use
+`featurekit.TTLCache` can opt in with `featurekit.TTLCacheMetricSpecs` and
+`featurekit.CollectTTLCacheMetrics`.
+
+For a feature namespace `<feature_namespace>`, use a stable low-cardinality
+`cache` label value such as `whois`, `dns`, or `package_index`. Do not use
+cache keys, domains, hosts, paths, packages, or certificates as the `cache`
+label.
+
+### `<feature_namespace>_cache_entries`
+
+- Type: gauge
+- Value: current number of live entries in the cache
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_hits_total`
+
+- Type: counter
+- Value: cumulative total number of cache hits
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_misses_total`
+
+- Type: counter
+- Value: cumulative total number of cache misses
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_sets_total`
+
+- Type: counter
+- Value: cumulative total number of successful cache set operations
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_deletes_total`
+
+- Type: counter
+- Value: cumulative total number of existing entries deleted explicitly
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_expired_total`
+
+- Type: counter
+- Value: cumulative total number of entries removed after expiry
+- Labels: `cache` plus exporter-defined labels
+
+### `<feature_namespace>_cache_clears_total`
+
+- Type: counter
+- Value: cumulative total number of cache clear operations
+- Labels: `cache` plus exporter-defined labels
+
 ## Go Runtime Metrics
 
 The framework registers the standard Prometheus Go collector.

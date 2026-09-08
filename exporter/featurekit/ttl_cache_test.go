@@ -27,6 +27,10 @@ func TestTTLCacheGetSetAndExpiry(t *testing.T) {
 	if size := cache.Len(); size != 0 {
 		t.Fatalf("Len() = %d, want 0", size)
 	}
+	stats := cache.Stats()
+	if stats.Entries != 0 || stats.Hits != 1 || stats.Misses != 1 || stats.Sets != 1 || stats.Expired != 1 {
+		t.Fatalf("Stats() = %#v, want one set, hit, miss, and expiry", stats)
+	}
 }
 
 func TestTTLCacheDeleteAndClear(t *testing.T) {
@@ -36,6 +40,7 @@ func TestTTLCacheDeleteAndClear(t *testing.T) {
 	cache.Set("one", 1)
 	cache.Set("two", 2)
 	cache.Delete("one")
+	cache.Delete("missing")
 
 	if _, ok := cache.Get("one"); ok {
 		t.Fatal("expected deleted key to miss")
@@ -47,6 +52,10 @@ func TestTTLCacheDeleteAndClear(t *testing.T) {
 	cache.Clear()
 	if size := cache.Len(); size != 0 {
 		t.Fatalf("Len() after Clear = %d, want 0", size)
+	}
+	stats := cache.Stats()
+	if stats.Deletes != 1 || stats.Clears != 1 {
+		t.Fatalf("Stats() = %#v, want one delete and one clear", stats)
 	}
 }
 
@@ -140,6 +149,23 @@ func TestTTLCacheNilReceiver(t *testing.T) {
 	cache.Clear()
 	if size := cache.Len(); size != 0 {
 		t.Fatalf("Len() = %d, want 0", size)
+	}
+	if stats := cache.Stats(); stats != (TTLCacheStats{}) {
+		t.Fatalf("Stats() = %#v, want zero stats", stats)
+	}
+}
+
+func TestTTLCacheStatsCountsLenPurgedExpiries(t *testing.T) {
+	clock := newTestClock(time.Unix(100, 0))
+	cache := newTTLCacheWithClock[string, int](time.Second, clock.Now)
+
+	cache.Set("one", 1)
+	cache.Set("two", 2)
+	clock.Advance(time.Second)
+
+	stats := cache.Stats()
+	if stats.Entries != 0 || stats.Expired != 2 {
+		t.Fatalf("Stats() = %#v, want two purged expiries", stats)
 	}
 }
 

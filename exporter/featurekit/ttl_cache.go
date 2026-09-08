@@ -2,6 +2,7 @@ package featurekit
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,11 +14,28 @@ type TTLCache[K comparable, V any] struct {
 	ttl   time.Duration
 	now   func() time.Time
 	items map[K]ttlCacheItem[V]
+
+	hits    atomic.Uint64
+	misses  atomic.Uint64
+	sets    atomic.Uint64
+	deletes atomic.Uint64
+	expired atomic.Uint64
+	clears  atomic.Uint64
 }
 
 type ttlCacheItem[V any] struct {
 	value     V
 	expiresAt time.Time
+}
+
+type TTLCacheStats struct {
+	Entries uint64
+	Hits    uint64
+	Misses  uint64
+	Sets    uint64
+	Deletes uint64
+	Expired uint64
+	Clears  uint64
 }
 
 func NewTTLCache[K comparable, V any](ttl time.Duration) *TTLCache[K, V] {
@@ -45,10 +63,12 @@ func (c *TTLCache[K, V]) Get(key K) (V, bool) {
 	item, ok := c.items[key]
 	if !ok {
 		c.mu.RUnlock()
+		c.misses.Add(1)
 		return zero, false
 	}
 	if c.now().Before(item.expiresAt) {
 		c.mu.RUnlock()
+		c.hits.Add(1)
 		return item.value, true
 	}
 	c.mu.RUnlock()
@@ -56,8 +76,10 @@ func (c *TTLCache[K, V]) Get(key K) (V, bool) {
 	c.mu.Lock()
 	if current, ok := c.items[key]; ok && current.expiresAt.Equal(item.expiresAt) {
 		delete(c.items, key)
+		c.expired.Add(1)
 	}
 	c.mu.Unlock()
+	c.misses.Add(1)
 	return zero, false
 }
 
@@ -79,6 +101,7 @@ func (c *TTLCache[K, V]) SetWithTTL(key K, value V, ttl time.Duration) {
 		expiresAt: c.now().Add(ttl),
 	}
 	c.mu.Unlock()
+	c.sets.Add(1)
 }
 
 func (c *TTLCache[K, V]) Delete(key K) {
@@ -87,7 +110,10 @@ func (c *TTLCache[K, V]) Delete(key K) {
 	}
 
 	c.mu.Lock()
-	delete(c.items, key)
+	if _, ok := c.items[key]; ok {
+		delete(c.items, key)
+		c.deletes.Add(1)
+	}
 	c.mu.Unlock()
 }
 
@@ -99,6 +125,7 @@ func (c *TTLCache[K, V]) Clear() {
 	c.mu.Lock()
 	clear(c.items)
 	c.mu.Unlock()
+	c.clears.Add(1)
 }
 
 func (c *TTLCache[K, V]) Len() int {
@@ -107,13 +134,34 @@ func (c *TTLCache[K, V]) Len() int {
 	}
 
 	now := c.now()
+	expired := 0
 	c.mu.Lock()
 	for key, item := range c.items {
 		if !now.Before(item.expiresAt) {
 			delete(c.items, key)
+			expired++
 		}
 	}
 	size := len(c.items)
 	c.mu.Unlock()
+	if expired > 0 {
+		c.expired.Add(uint64(expired))
+	}
 	return size
+}
+
+func (c *TTLCache[K, V]) Stats() TTLCacheStats {
+	if c == nil {
+		return TTLCacheStats{}
+	}
+
+	return TTLCacheStats{
+		Entries: uint64(c.Len()),
+		Hits:    c.hits.Load(),
+		Misses:  c.misses.Load(),
+		Sets:    c.sets.Load(),
+		Deletes: c.deletes.Load(),
+		Expired: c.expired.Load(),
+		Clears:  c.clears.Load(),
+	}
 }

@@ -2,6 +2,13 @@ const MetricScopeAbsolute
 const MetricScopeFeature
 const MetricScopeNamespace
 const MetricScopeUnset
+const TTLCacheMetricClears
+const TTLCacheMetricDeletes
+const TTLCacheMetricEntries
+const TTLCacheMetricExpired
+const TTLCacheMetricHits
+const TTLCacheMetricMisses
+const TTLCacheMetricSets
 field CollectorContext.Config C
 field CollectorContext.FeatureName string
 field CollectorContext.Framework framework.FeatureContext
@@ -110,6 +117,21 @@ field SnapshotMetricsContext.Snapshotter framework.Snapshotter[S]
 field SpecOptions.DefaultRefreshInterval time.Duration
 field SpecOptions.FallbackRefreshInterval time.Duration
 field SpecOptions.FeatureName string
+field TTLCacheMetricDescs.ClearsDesc *prometheus.Desc
+field TTLCacheMetricDescs.DeletesDesc *prometheus.Desc
+field TTLCacheMetricDescs.EntriesDesc *prometheus.Desc
+field TTLCacheMetricDescs.ExpiredDesc *prometheus.Desc
+field TTLCacheMetricDescs.HitsDesc *prometheus.Desc
+field TTLCacheMetricDescs.MissesDesc *prometheus.Desc
+field TTLCacheMetricDescs.SetsDesc *prometheus.Desc
+field TTLCacheStats.Clears uint64
+field TTLCacheStats.Deletes uint64
+field TTLCacheStats.Entries uint64
+field TTLCacheStats.Expired uint64
+field TTLCacheStats.Hits uint64
+field TTLCacheStats.Misses uint64
+field TTLCacheStats.Sets uint64
+func CollectTTLCacheMetrics func[S any](ctx FeatureMetricsContext[S], ch chan<- prometheus.Metric, cache string, stats TTLCacheStats, labelValues ...string)
 func DefaultFeatureConfigFile func(featureName string) string
 func FeatureMetricName func(featureName string, namespace string, id string, specs []FeatureMetricSpec) string
 func FileScrapeMetricIDsFor func(source string) FileScrapeMetricIDs
@@ -129,6 +151,8 @@ func NewTTLCache func[K comparable, V any](ttl time.Duration) *TTLCache[K, V]
 func RegisterFeatureConfigFlagSpecs func[C any](app *kingpin.Application, ctx FlagContext, config *C, specs []FeatureConfigFlagSpec[C])
 func ResolveFeatureConfig func[C any](featureName string, config C, configFileFunc FeatureConfigFileFunc[C], resolveFunc FeatureConfigResolver[C]) (C, string, bool, error)
 func ResolveSnapshotCollectorOptions func[S any](options SnapshotCollectorOptions[S]) SnapshotCollectorOptions[S]
+func TTLCacheMetricDescsFor func(descs FeatureMetricDescriptors) TTLCacheMetricDescs
+func TTLCacheMetricSpecs func(labels []string) []FeatureMetricSpec
 interface FeatureContract.DefaultConfig func() C
 interface FeatureContract.DefaultRefreshInterval func() time.Duration
 interface FeatureContract.DefaultSnapshotter func() framework.Snapshotter[S]
@@ -154,6 +178,7 @@ method (*TTLCache[K, V]) Get func(key K) (V, bool)
 method (*TTLCache[K, V]) Len func() int
 method (*TTLCache[K, V]) Set func(key K, value V)
 method (*TTLCache[K, V]) SetWithTTL func(key K, value V, ttl time.Duration)
+method (*TTLCache[K, V]) Stats func() TTLCacheStats
 method (FeatureDefaults[C, S]) DefaultConfig func() C
 method (FeatureDefaults[C, S]) DefaultRefreshInterval func() time.Duration
 method (FeatureDefaults[C, S]) DefaultSnapshotter func() framework.Snapshotter[S]
@@ -203,4 +228,6 @@ type SnapshotMetricsContext[S any]
 type SnapshotMetricsFunc[S any] func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S]
 type SnapshotMetrics[S any]
 type SpecOptions
+type TTLCacheMetricDescs
+type TTLCacheStats
 type TTLCache[K comparable, V any]

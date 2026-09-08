@@ -30,5 +30,7 @@
 // file-backed domain sources; combine it with exporter.FileScraper and
 // exporter.FileScrapeMetrics in concrete feature code.
 // TTLCache provides a small thread-safe cache for feature-owned expensive
-// lookups, including entries with value-specific TTLs.
+// lookups, including entries with value-specific TTLs. Use
+// TTLCacheMetricSpecs and CollectTTLCacheMetrics when a feature wants to expose
+// opt-in cache health metrics with a stable low-cardinality cache label.
 package featurekit
