@@ -245,15 +245,16 @@ jobs:
           go mod tidy
           cd ../..
 
+          make docs-generate GO=go
           make scaffold-check-pinned GO=go GOFMT=gofmt
 
-          if git diff --quiet -- scaffold/template/go.mod scaffold/template/go.sum; then
-            echo "scaffold/template already points at ${VERSION}"
+          if git diff --quiet -- scaffold/template/go.mod scaffold/template/go.sum docs/reference.md; then
+            echo "scaffold/template and generated reference docs already point at ${VERSION}"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add scaffold/template/go.mod scaffold/template/go.sum
+          git add scaffold/template/go.mod scaffold/template/go.sum docs/reference.md
           git commit -m "chore(scaffold): bump framework to ${VERSION}"
           git push origin "HEAD:${DEFAULT_BRANCH}"
