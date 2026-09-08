@@ -19,6 +19,7 @@ SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 SCAFFOLD_MAKEFILE ?= scaffold/Makefile
 
 .PHONY: help fmt fmt-check vet staticcheck govulncheck golangci-lint test test-race coverage coverage-check smoke check clean
+.PHONY: release-preflight release-version-check release-scaffold-pin-check release-commit-message-check push-release
 .PHONY: docs-generate docs-check
 .PHONY: mod-tidy deps-update framework-mod-tidy framework-deps-update
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
@@ -121,6 +122,45 @@ smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" $(GO) test ./smoke -run TestBinarySmoke -count=1
 
 check: fmt-check vet staticcheck golangci-lint govulncheck docs-check coverage-check smoke test-race ## Run the standard maintenance check.
+
+release-preflight: release-version-check release-scaffold-pin-check check scaffold-check-local ## Run all checks required before creating a release tag. Set VERSION=vX.Y.Z.
+
+release-version-check: ## Validate VERSION for release targets.
+	@test -n "$(VERSION)" || { echo "VERSION is required, for example VERSION=v0.1.0" >&2; exit 2; }
+	@case "$(VERSION)" in \
+		v0.[0-9]*.[0-9]*|v1.[0-9]*.[0-9]*) ;; \
+		*) echo "VERSION must look like v0.1.0 or v1.2.3; v2+ requires a /v2 module path" >&2; exit 2 ;; \
+	esac
+
+release-scaffold-pin-check: release-version-check ## Verify scaffold/template go.mod is pinned to VERSION before tagging.
+	@template_framework_version="$$(awk '\
+		$$1 == "require" && $$2 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" { print $$3; exit } \
+		$$1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" { print $$2; exit } \
+	' scaffold/template/go.mod)"; \
+	if [ -z "$$template_framework_version" ]; then \
+		echo "scaffold/template/go.mod does not require github.com/zxzharmlesszxz/prometheus-exporter-framework" >&2; \
+		exit 2; \
+	fi; \
+	if [ "$$template_framework_version" != "$(VERSION)" ]; then \
+		echo "scaffold/template/go.mod uses $$template_framework_version; release VERSION is $(VERSION)" >&2; \
+		exit 2; \
+	fi
+
+release-commit-message-check: release-version-check ## Verify HEAD subject is pre-release VERSION.
+	@subject="$$(git log -1 --pretty=%s)"; \
+	if [ "$$subject" != "pre-release $(VERSION)" ]; then \
+		echo "HEAD subject must be exactly: pre-release $(VERSION)" >&2; \
+		echo "current HEAD subject: $$subject" >&2; \
+		exit 2; \
+	fi
+
+push-release: release-commit-message-check release-preflight ## Run release preflight and push HEAD to the default branch. Set VERSION=vX.Y.Z.
+	@current_branch="$$(git branch --show-current)"; \
+	if [ "$$current_branch" != "main" ]; then \
+		echo "push-release must run from main, got $$current_branch" >&2; \
+		exit 2; \
+	fi
+	git push origin HEAD:main
 
 clean: ## Remove generated local artifacts.
 	rm -f $(COVERAGE_PROFILE) $(COVERAGE_REPORT)

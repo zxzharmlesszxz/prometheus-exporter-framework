@@ -97,3 +97,96 @@ jobs:
 
       - name: Run scaffold checks
         run: make scaffold-check-local GO=go GOFMT=gofmt
+
+  pre-release:
+    name: Pre-release
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.27.1-alpine
+    if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'pre-release ')
+    outputs:
+      version: ${{ steps.pre_release.outputs.version }}
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash build-base ca-certificates git make
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Resolve pre-release version
+        id: pre_release
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          first_line="$(printf '%s\n' "$HEAD_COMMIT_MESSAGE" | sed -n '1p')"
+          if ! [[ "$first_line" =~ ^pre-release\ (v(0|1)\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?)$ ]]; then
+            echo "pre-release commit message must be exactly: pre-release vX.Y.Z"
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Run release preflight
+        env:
+          VERSION: ${{ steps.pre_release.outputs.version }}
+        run: make release-preflight GO=go GOFMT=gofmt COVERAGE_THRESHOLD="$COVERAGE_THRESHOLD" VERSION="$VERSION"
+
+  auto-release:
+    name: Auto-release
+    runs-on: ubuntu-24.04
+    container:
+      image: golang:1.27.1-alpine
+    needs:
+      - pre-release
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && startsWith(github.event.head_commit.message, 'pre-release ')
+    permissions:
+      contents: write
+    steps:
+      - name: Prepare Alpine
+        shell: sh
+        run: apk add --no-cache bash ca-certificates git github-cli
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check release state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs['pre-release'].outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "tag already exists: $VERSION"
+            exit 1
+          fi
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release already exists: $VERSION"
+            exit 1
+          fi
+
+      - name: Create annotated tag
+        env:
+          VERSION: ${{ needs['pre-release'].outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs['pre-release'].outputs.version }}
+        run: |
+          gh release create "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "$VERSION"

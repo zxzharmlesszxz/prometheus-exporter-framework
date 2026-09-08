@@ -29,16 +29,18 @@ Rendered `examples/`, dashboards, alert rules, rule tests, and exporter docs are
 concrete exporter-owned after generation.
 
 Concrete exporter scaffolding lives in `scaffold/` in this repository. The
-release workflow verifies both the framework and the local scaffold template
-before publishing a new module tag and creating the GitHub Release. When
-`scaffold/template/go.mod` points at an already published framework dependency
-instead of the release tag being created, the workflow also runs scaffold checks
-without the local framework `replace`.
-If a module tag exists without a GitHub Release, rerun the workflow with the same
-version to verify the tagged commit and create the GitHub Release.
-If the post-release scaffold pin update fails after the GitHub Release is
-created, rerun the release workflow with the same version after fixing the
-failure; the workflow reuses the existing tag and release state.
+release path is a push to the default branch whose commit subject is exactly
+`pre-release vX.Y.Z`. Push CI detects that subject, runs
+`make release-preflight VERSION=<tag>`, creates an annotated module tag, and
+creates the GitHub Release. The preflight requires `scaffold/template/go.mod` to
+already point at the release version, verifies generated docs and public API
+goldens, runs the full framework check, and checks the scaffold against the
+current framework checkout. Use `make push-release VERSION=vX.Y.Z` to run the
+local preflight and push the release-preparation commit to `main`. Direct tag
+pushes should be rejected by server-side repository rules. The manual `Release`
+workflow remains available for recovery; if a module tag exists without a GitHub
+Release, rerun it with the same version to verify the tagged commit and create
+the GitHub Release.
 The framework root keeps a stricter default coverage threshold (`90.0`) than
 generated exporters (`85.0`) because downstream domain packages usually start
 from sparse scaffold code and harden coverage as exporter logic grows.
