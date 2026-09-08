@@ -268,6 +268,7 @@ export DOCKER_SMOKE_EXTRA_METRICS_SED
 find "$target_dir" -type f -exec sh -c '
   for file do
     sed -i.bak \
+      -e "s|SCAFFOLD_RENDERED := false|SCAFFOLD_RENDERED := true|g" \
       -e "s|__PROJECT_NAME__|$PROJECT_NAME_SED|g" \
       -e "s|__GO_MODULE__|$GO_MODULE_SED|g" \
       -e "s|__PROJECT_DESC__|$PROJECT_DESC_SED|g" \

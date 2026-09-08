@@ -13,10 +13,11 @@ if make -C "$repo_dir/template" docker-smoke-build >"$tmp/template-docker-smoke.
   echo "raw scaffold template docker smoke unexpectedly passed" >&2
   exit 1
 fi
-grep -F "scaffold template must be rendered before running build targets" "$tmp/template-docker-smoke.out" >/dev/null
+grep -F "scaffold template must be rendered before running build or compose targets" "$tmp/template-docker-smoke.out" >/dev/null
 
 "$repo_dir/scripts/scaffold-drift.sh" --list-files >"$tmp/list-files.out"
 grep -Fx "Makefile" "$tmp/list-files.out" >/dev/null
+grep -Fx "Makefile.defaults.mk" "$tmp/list-files.out" >/dev/null
 grep -Fx "Dockerfile" "$tmp/list-files.out" >/dev/null
 grep -Fx ".dockerignore" "$tmp/list-files.out" >/dev/null
 grep -Fx "internal/__FEATURE_NAME__/scaffold_feature.go" "$tmp/list-files.out" >/dev/null
@@ -49,9 +50,10 @@ grep -F 'ENTRYPOINT ["/usr/local/bin/prometheus-demo-exporter"]' "$target_dir/Do
 printf '%s\n' \
   'include Makefile' \
   'print-vars:' \
-  '	@printf "%s\n" "GO_MODULE=$(GO_MODULE)" "FRAMEWORK_MODULE=$(FRAMEWORK_MODULE)" "PROJECT_NAME=$(PROJECT_NAME)" "FEATURE_NAME=$(FEATURE_NAME)" "FEATURE_NAMESPACE=$(FEATURE_NAMESPACE)" "METRIC_NAMESPACE=$(METRIC_NAMESPACE)" "DEFAULT_PORT=$(DEFAULT_PORT)" "FEATURE_CONFIG_FILE=$(FEATURE_CONFIG_FILE)" "DOCKER_ENTRYPOINT_NAME=$(DOCKER_ENTRYPOINT_NAME)" "DOCKER_SMOKE_PORT=$(DOCKER_SMOKE_PORT)" "DOCKER_PROJECT_NAME=$(DOCKER_PROJECT_NAME)" "COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)" "COMPOSE_FEATURE_NAME=$(COMPOSE_FEATURE_NAME)" "COMPOSE_EXPORTER_PORT=$(COMPOSE_EXPORTER_PORT)"' \
+  '	@printf "%s\n" "SCAFFOLD_RENDERED=$(SCAFFOLD_RENDERED)" "GO_MODULE=$(GO_MODULE)" "FRAMEWORK_MODULE=$(FRAMEWORK_MODULE)" "PROJECT_NAME=$(PROJECT_NAME)" "FEATURE_NAME=$(FEATURE_NAME)" "FEATURE_NAMESPACE=$(FEATURE_NAMESPACE)" "METRIC_NAMESPACE=$(METRIC_NAMESPACE)" "DEFAULT_PORT=$(DEFAULT_PORT)" "FEATURE_CONFIG_FILE=$(FEATURE_CONFIG_FILE)" "DOCKER_ENTRYPOINT_NAME=$(DOCKER_ENTRYPOINT_NAME)" "DOCKER_SMOKE_PORT=$(DOCKER_SMOKE_PORT)" "DOCKER_PROJECT_NAME=$(DOCKER_PROJECT_NAME)" "COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)" "COMPOSE_EXPORTER_HOST_PORT=$(COMPOSE_EXPORTER_HOST_PORT)"' \
   >"$tmp/rendered-vars.mk"
 make -C "$target_dir" --no-print-directory -f "$tmp/rendered-vars.mk" print-vars >"$tmp/rendered-make-vars.out"
+grep -Fx "SCAFFOLD_RENDERED=true" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "GO_MODULE=github.com/zxzharmlesszxz/prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "FRAMEWORK_MODULE=github.com/zxzharmlesszxz/prometheus-exporter-framework" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
@@ -64,8 +66,27 @@ grep -Fx "DOCKER_ENTRYPOINT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-v
 grep -Fx "DOCKER_SMOKE_PORT=9900" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "DOCKER_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
 grep -Fx "COMPOSE_PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-make-vars.out" >/dev/null
-grep -Fx "COMPOSE_FEATURE_NAME=demo" "$tmp/rendered-make-vars.out" >/dev/null
-grep -Fx "COMPOSE_EXPORTER_PORT=9888" "$tmp/rendered-make-vars.out" >/dev/null
+grep -Fx "COMPOSE_EXPORTER_HOST_PORT=9888" "$tmp/rendered-make-vars.out" >/dev/null
+make -C "$target_dir" --no-print-directory print-ldflags LDFLAGS=broken >"$tmp/rendered-ldflags.out"
+if grep -Fx "broken" "$tmp/rendered-ldflags.out" >/dev/null; then
+  echo "rendered Makefile accepted direct LDFLAGS override" >&2
+  exit 1
+fi
+grep -F "exporter.injectedExporterName=prometheus-demo-exporter" "$tmp/rendered-ldflags.out" >/dev/null
+cat >"$target_dir/Makefile.local" <<'EOF'
+COMPOSE_EXPORTER_HOST_PORT := 19988
+LDFLAGS := broken
+PROJECT_NAME := wrong
+EOF
+make -C "$target_dir" --no-print-directory -f "$tmp/rendered-vars.mk" print-vars >"$tmp/rendered-local-vars.out"
+grep -Fx "PROJECT_NAME=prometheus-demo-exporter" "$tmp/rendered-local-vars.out" >/dev/null
+grep -Fx "COMPOSE_EXPORTER_HOST_PORT=19988" "$tmp/rendered-local-vars.out" >/dev/null
+make -C "$target_dir" --no-print-directory print-ldflags >"$tmp/rendered-local-ldflags.out"
+if grep -Fx "broken" "$tmp/rendered-local-ldflags.out" >/dev/null; then
+  echo "rendered Makefile.local accepted direct LDFLAGS override" >&2
+  exit 1
+fi
+grep -F "exporter.injectedExporterName=prometheus-demo-exporter" "$tmp/rendered-local-ldflags.out" >/dev/null
 if grep -n '[[:space:]]$' "$target_dir/Makefile.mk" >"$tmp/rendered-makefile-whitespace.out"; then
   cat "$tmp/rendered-makefile-whitespace.out" >&2
   exit 1

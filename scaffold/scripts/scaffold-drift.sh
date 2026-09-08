@@ -54,6 +54,7 @@ Default managed files:
   Dockerfile
   Makefile
   Makefile.mk
+  Makefile.defaults.mk
   docker-compose.yml
   .dockerignore
   .github/dependabot.yml
@@ -73,8 +74,9 @@ Framework version:
   scaffold version in template/go.mod. Older target versions are reported as
   OUTDATED and make the check fail.
 
-Makefile should stay scaffold-managed. Domain-specific Docker smoke mounts,
-exporter arguments, and extra metric checks belong in Makefile.mk variables.
+Makefile, Makefile.mk, and Makefile.defaults.mk should stay scaffold-managed.
+Domain-specific Docker smoke mounts, exporter arguments, and extra metric checks
+belong in rendered Makefile.mk contract variables.
 docker-compose.yml should stay scaffold-managed. Domain-specific Compose
 commands, mounts, configs, and local example wiring belong in
 docker-compose.override.yml.
@@ -149,6 +151,7 @@ default_files=(
   "Dockerfile"
   "Makefile"
   "Makefile.mk"
+  "Makefile.defaults.mk"
   "docker-compose.yml"
   ".dockerignore"
   ".github/dependabot.yml"

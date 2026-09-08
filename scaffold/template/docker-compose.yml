@@ -3,16 +3,20 @@ services:
     build:
       context: .
       args:
-        LDFLAGS: ${LDFLAGS:-}
+        VERSION: ${VERSION:-dev}
+        BRANCH: ${BRANCH:-dev}
+        REVISION: ${REVISION:-dev}
+        BUILD_USER: ${BUILD_USER:-compose}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     command:
-      - --web.listen-address=:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}
+      - --web.listen-address=:__DEFAULT_PORT__
       - --${FEATURE_NAME:-__FEATURE_NAME__}.config-file=${FEATURE_CONFIG_CONTAINER_PATH:-/etc/prometheus/__FEATURE_CONFIG_FILE__}
       - --${FEATURE_NAME:-__FEATURE_NAME__}.refresh-interval=1h
     configs:
       - source: feature_config
         target: ${FEATURE_CONFIG_CONTAINER_PATH:-/etc/prometheus/__FEATURE_CONFIG_FILE__}
     ports:
-      - "127.0.0.1:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}"
+      - "127.0.0.1:${COMPOSE_EXPORTER_HOST_PORT:-__DEFAULT_PORT__}:__DEFAULT_PORT__"
 
   prometheus:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.14.0}
@@ -66,7 +70,7 @@ configs:
         - job_name: ${FEATURE_NAME:-__FEATURE_NAME__}-exporter
           static_configs:
             - targets:
-                - exporter:${COMPOSE_EXPORTER_PORT:-__DEFAULT_PORT__}
+                - exporter:__DEFAULT_PORT__
   grafana_prometheus_datasource:
     content: |
       apiVersion: 1

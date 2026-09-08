@@ -187,17 +187,10 @@ jobs:
         run: |
           revision="${GITHUB_SHA::7}"
           build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          ldflags="$(make print-ldflags \
-            VERSION="${GITHUB_REF_NAME}" \
-            BRANCH="${GITHUB_REF_NAME}" \
-            REVISION="${revision}" \
-            BUILD_USER=github-actions \
-            BUILD_DATE="${build_date}")"
 
           {
             echo "revision=${revision}"
             echo "build_date=${build_date}"
-            echo "ldflags=${ldflags}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build Docker Image For Version Check
@@ -209,8 +202,11 @@ jobs:
           platforms: linux/amd64
           tags: ${{ inputs.project-name }}:release-check
           build-args: |
-            PROJECT_NAME=${{ inputs.project-name }}
-            LDFLAGS=${{ steps.docker-meta.outputs.ldflags }}
+            VERSION=${{ github.ref_name }}
+            BRANCH=${{ github.ref_name }}
+            REVISION=${{ steps.docker-meta.outputs.revision }}
+            BUILD_USER=github-actions
+            BUILD_DATE=${{ steps.docker-meta.outputs.build_date }}
 
       - name: Verify Docker Image Version
         shell: bash
@@ -242,5 +238,8 @@ jobs:
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           build-args: |
-            PROJECT_NAME=${{ inputs.project-name }}
-            LDFLAGS=${{ steps.docker-meta.outputs.ldflags }}
+            VERSION=${{ github.ref_name }}
+            BRANCH=${{ github.ref_name }}
+            REVISION=${{ steps.docker-meta.outputs.revision }}
+            BUILD_USER=github-actions
+            BUILD_DATE=${{ steps.docker-meta.outputs.build_date }}

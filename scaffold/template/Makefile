@@ -1,4 +1,6 @@
 include Makefile.mk
+include Makefile.defaults.mk
+-include Makefile.local
 
 .PHONY: help build release release-archives release-checksums release-smoke docker-build docker-buildx docker-buildx-push docker-push fmt fmt-check print-ldflags vet staticcheck govulncheck golangci-lint test test-race coverage coverage-check smoke promtool-check promtool-rules-test compose compose-up compose-down compose-logs compose-config examples-check docker-smoke-build docker-smoke-image docker-smoke go-check check full-check clean size require-rendered-template
 .SILENT: compose compose-config compose-down compose-logs compose-up size
@@ -117,30 +119,36 @@ smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" EXPORTER_SMOKE_BINARY="$(SMOKE_BINARY)" $(GO) test -buildvcs=false -ldflags "$(SMOKE_LDFLAGS)" ./smoke -run TestBinarySmoke -count=1
 
 require-rendered-template:
-	@if [ "$(PROJECT_NAME)" = "$(SCAFFOLD_TEMPLATE_PROJECT_NAME)" ]; then \
-		echo "scaffold template must be rendered before running build targets" >&2; \
+	@if [ "$(SCAFFOLD_RENDERED)" != "true" ]; then \
+		echo "scaffold template must be rendered before running build or compose targets" >&2; \
 		exit 2; \
 	fi
 
+define docker_build_args
+--build-arg VERSION="$(VERSION)"
+--build-arg BRANCH="$(BRANCH)"
+--build-arg REVISION="$(REVISION)"
+--build-arg BUILD_USER="$(BUILD_USER)"
+--build-arg BUILD_DATE="$(BUILD_DATE)"
+-t $(DOCKER_IMAGE)
+endef
+
 docker-build: require-rendered-template ## Build the Docker image.
 	$(DOCKER) build \
-		--build-arg LDFLAGS="$(LDFLAGS)" \
-		-t $(DOCKER_IMAGE) \
+		$(strip $(docker_build_args)) \
 		.
 
 docker-buildx: require-rendered-template ## Build a multi-platform Docker image with buildx.
 	$(DOCKER) buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		--build-arg LDFLAGS="$(LDFLAGS)" \
-		-t $(DOCKER_IMAGE) \
+		$(strip $(docker_build_args)) \
 		.
 
 docker-buildx-push: require-rendered-template ## Build and push a multi-platform Docker image with buildx.
 	$(DOCKER) buildx build \
 		--push \
 		--platform $(DOCKER_PLATFORMS) \
-		--build-arg LDFLAGS="$(LDFLAGS)" \
-		-t $(DOCKER_IMAGE) \
+		$(strip $(docker_build_args)) \
 		.
 
 docker-push: ## Push the Docker image.
@@ -157,20 +165,24 @@ promtool-rules-test: ## Test bundled Prometheus alert rules when present.
 	fi; \
 	$(MAKE) compose COMPOSE_ARGS="run --rm --no-deps --workdir /etc/prometheus/rules/tests --entrypoint promtool prometheus test rules $$tests"
 
-compose: ## Run Docker Compose with Makefile.mk variables. Override COMPOSE_ARGS as needed.
+compose: require-rendered-template ## Run Docker Compose with Makefile.mk variables. Override COMPOSE_ARGS as needed.
 	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" \
+	VERSION="$(VERSION)" \
+	BRANCH="$(BRANCH)" \
+	REVISION="$(REVISION)" \
+	BUILD_USER="$(BUILD_USER)" \
+	BUILD_DATE="$(BUILD_DATE)" \
 	PROJECT_NAME="$(PROJECT_NAME)" \
 	PROJECT_DESC="$(PROJECT_DESC)" \
-	FEATURE_NAME="$(COMPOSE_FEATURE_NAME)" \
+	FEATURE_NAME="$(FEATURE_NAME)" \
 	FEATURE_CONFIG_FILE="$(FEATURE_CONFIG_FILE)" \
 	FEATURE_CONFIG_PATH="$(FEATURE_CONFIG_PATH)" \
 	FEATURE_CONFIG_CONTAINER_PATH="$(FEATURE_CONFIG_CONTAINER_PATH)" \
-	COMPOSE_EXPORTER_PORT="$(COMPOSE_EXPORTER_PORT)" \
+	COMPOSE_EXPORTER_HOST_PORT="$(COMPOSE_EXPORTER_HOST_PORT)" \
 	PROMETHEUS_IMAGE="$(PROMETHEUS_IMAGE)" \
 	GRAFANA_IMAGE="$(GRAFANA_IMAGE)" \
 	GRAFANA_ADMIN_USER="$(GRAFANA_ADMIN_USER)" \
 	GRAFANA_ADMIN_PASSWORD="$(GRAFANA_ADMIN_PASSWORD)" \
-	LDFLAGS="$(LDFLAGS)" \
 	$(DOCKER_COMPOSE) $(COMPOSE_ARGS)
 
 compose-up: ## Start the Docker Compose example.
@@ -190,7 +202,11 @@ examples-check: promtool-check promtool-rules-test compose-config ## Validate sh
 docker-smoke-build: require-rendered-template ## Build the Docker image used by docker-smoke.
 	$(MAKE) docker-build \
 		DOCKER_IMAGE=$(SMOKE_DOCKER_IMAGE) \
-		LDFLAGS="$(SMOKE_LDFLAGS)"
+		VERSION="$(SMOKE_VERSION)" \
+		BRANCH="$(SMOKE_BRANCH)" \
+		REVISION="$(SMOKE_REVISION)" \
+		BUILD_USER="$(SMOKE_BUILD_USER)" \
+		BUILD_DATE="$(SMOKE_BUILD_DATE)"
 
 docker-smoke-image: ## Smoke-test an already built Docker image.
 	@help_output="$$( $(DOCKER) run --rm $(DOCKER_IMAGE) --help 2>&1 )"; \

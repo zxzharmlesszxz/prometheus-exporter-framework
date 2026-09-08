@@ -124,7 +124,7 @@ make drift-sync TARGET_DIR=../prometheus-demo-exporter
 
 The default managed set is intentionally conservative: CI files, ignore files,
 `cmd/scaffold_main.go`, Dependabot config, `Dockerfile`, `Makefile`,
-`Makefile.mk`, and the thin scaffold-owned adapter in
+`Makefile.mk`, `Makefile.defaults.mk`, and the thin scaffold-owned adapter in
 `internal/exporter/scaffold_exporter.go`. It also includes the thin feature
 assembly file, shared feature test suite core, and binary smoke test under
 `scaffold_*.go` names.
@@ -138,13 +138,22 @@ Generated Docker images copy the rendered project binary to
 entrypoint. The name is fixed at render time and is not a build-time override;
 project identity is still injected through linker metadata and exposed through
 `--version` and `*_build_info`.
-Rendered identity and scaffold defaults are intentionally fixed in
+Rendered identity and scaffold contract values are intentionally fixed in
 `Makefile.mk`: module paths, project metadata, feature names, namespaces,
-default port, feature config path, coverage output filenames, and Docker
-smoke-test contract values belong to the generated exporter contract. Keep
-per-run overrides for tooling and build integration values such as `GO`,
-`GOFMT`, `VERSION`, `REVISION`, `BUILD_DATE`, `LDFLAGS`, `BUILD_OUTPUT`,
-`DOCKER_IMAGE`, Compose image tags, and local Grafana credentials.
+default port, feature config path, coverage output filenames, Docker smoke-test
+contract values, and linker flag construction belong to the generated exporter
+contract. `Makefile.defaults.mk` contains overridable tooling and environment
+defaults such as `GO`, `GOFMT`, `VERSION`, `BRANCH`, `REVISION`, `BUILD_USER`,
+`BUILD_DATE`, `BUILD_OUTPUT`, Docker image tags, Compose image tags, local
+Grafana credentials, and `COMPOSE_EXPORTER_HOST_PORT` for the local host binding
+only. `LDFLAGS` is derived from the rendered exporter identity and the metadata
+variables above; do not override it directly. The rendered default port remains
+the container listen port, Docker health-check port, and Prometheus scrape
+target.
+Use ignored `Makefile.local` files for persistent local-only overrides. Keep
+scaffold-owned identity and contract variables in `Makefile.mk`; if they need to
+change, re-render or sync from scaffold instead of editing a concrete exporter
+by hand.
 Concrete exporters keep domain logic in adjacent feature-package files and the
 feature check package. Do not sync domain-owned files from scaffold unless you
 are intentionally resetting that exporter-specific logic:
