@@ -29,4 +29,6 @@
 // FileScrapeMetricSpecs provides the standard source-health metric contract for
 // file-backed domain sources; combine it with exporter.FileScraper and
 // exporter.FileScrapeMetrics in concrete feature code.
+// TTLCache provides a small thread-safe cache for feature-owned expensive
+// lookups, including entries with value-specific TTLs.
 package featurekit

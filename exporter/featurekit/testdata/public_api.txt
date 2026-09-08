@@ -125,6 +125,7 @@ func NewSnapshotExtensionFeature func[C any, S any](options SpecOptions, extensi
 func NewSnapshotExtensionFeatureSpec func[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) FeatureSpec[C, S]
 func NewSnapshotFeatureSpec func[C any, S any](spec SnapshotFeatureSpec[C, S]) FeatureSpec[C, S]
 func NewSnapshotMetricsCollector func[S any](options SnapshotMetricsCollectorOptions[S]) *framework.SnapshotCollector[S]
+func NewTTLCache func[K comparable, V any](ttl time.Duration) *TTLCache[K, V]
 func RegisterFeatureConfigFlagSpecs func[C any](app *kingpin.Application, ctx FlagContext, config *C, specs []FeatureConfigFlagSpec[C])
 func ResolveFeatureConfig func[C any](featureName string, config C, configFileFunc FeatureConfigFileFunc[C], resolveFunc FeatureConfigResolver[C]) (C, string, bool, error)
 func ResolveSnapshotCollectorOptions func[S any](options SnapshotCollectorOptions[S]) SnapshotCollectorOptions[S]
@@ -147,6 +148,12 @@ method (*Feature[C, S]) RegisterCollectors func(ctx framework.FeatureContext, re
 method (*Feature[C, S]) RegisterFlags func(app *kingpin.Application)
 method (*Feature[C, S]) RuntimeConfig func() []any
 method (*Feature[C, S]) SmokeSpec func() SmokeSpec
+method (*TTLCache[K, V]) Clear func()
+method (*TTLCache[K, V]) Delete func(key K)
+method (*TTLCache[K, V]) Get func(key K) (V, bool)
+method (*TTLCache[K, V]) Len func() int
+method (*TTLCache[K, V]) Set func(key K, value V)
+method (*TTLCache[K, V]) SetWithTTL func(key K, value V, ttl time.Duration)
 method (FeatureDefaults[C, S]) DefaultConfig func() C
 method (FeatureDefaults[C, S]) DefaultRefreshInterval func() time.Duration
 method (FeatureDefaults[C, S]) DefaultSnapshotter func() framework.Snapshotter[S]
@@ -196,3 +203,4 @@ type SnapshotMetricsContext[S any]
 type SnapshotMetricsFunc[S any] func(ctx SnapshotMetricsContext[S]) SnapshotMetrics[S]
 type SnapshotMetrics[S any]
 type SpecOptions
+type TTLCache[K comparable, V any]
