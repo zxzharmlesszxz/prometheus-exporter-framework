@@ -107,6 +107,39 @@ git -C "$target_dir" \
 "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --file Makefile >/dev/null
 "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --all-files >/dev/null
 
+if "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --all-files >"$tmp/all-files-sync.out" 2>&1; then
+  echo "all-files sync unexpectedly passed" >&2
+  exit 1
+fi
+grep -F -- "--all-files is check-only" "$tmp/all-files-sync.out" >/dev/null
+
+printf '\n# exporter-owned domain metric deviation\n' >> "$target_dir/internal/demo/feature_metrics_ext.go"
+printf '\n# exporter-owned domain rule deviation\n' >> "$target_dir/examples/prometheus/prometheus-demo-exporter.yml"
+printf '\n# exporter-owned domain dashboard deviation\n' >> "$target_dir/examples/grafana/prometheus-demo-exporter.json"
+
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" >/dev/null
+
+if "$repo_dir/scripts/scaffold-drift.sh" \
+  --target-dir "$target_dir" \
+  --file internal/demo/feature_metrics_ext.go >"$tmp/feature-owned-file.out" 2>&1; then
+  echo "targeted drift-check passed after feature-owned file drift" >&2
+  exit 1
+fi
+grep -F "DRIFT   internal/demo/feature_metrics_ext.go" "$tmp/feature-owned-file.out" >/dev/null
+
+if "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --all-files >"$tmp/all-files-drift.out" 2>&1; then
+  echo "all-files drift-check passed after exporter-owned drift" >&2
+  exit 1
+fi
+grep -F "DRIFT   internal/demo/feature_metrics_ext.go" "$tmp/all-files-drift.out" >/dev/null
+grep -F "DRIFT   examples/prometheus/prometheus-demo-exporter.yml" "$tmp/all-files-drift.out" >/dev/null
+grep -F "DRIFT   examples/grafana/prometheus-demo-exporter.json" "$tmp/all-files-drift.out" >/dev/null
+
+"$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --sync --allow-dirty >/dev/null
+grep -F "# exporter-owned domain metric deviation" "$target_dir/internal/demo/feature_metrics_ext.go" >/dev/null
+grep -F "# exporter-owned domain rule deviation" "$target_dir/examples/prometheus/prometheus-demo-exporter.yml" >/dev/null
+grep -F "# exporter-owned domain dashboard deviation" "$target_dir/examples/grafana/prometheus-demo-exporter.json" >/dev/null
+
 printf '\n# domain runtime package deviation\n' >> "$target_dir/Dockerfile"
 if "$repo_dir/scripts/scaffold-drift.sh" --target-dir "$target_dir" --file Dockerfile >"$tmp/dockerfile-drift.out" 2>&1; then
   echo "drift-check passed after Dockerfile drift" >&2

@@ -70,10 +70,6 @@ Before tagging:
   messages surfaced through `config_error`.
 - Evaluate CI security hardening further: decide whether GitHub Actions should
   be pinned by SHA in root workflows and/or the scaffold template.
-- Keep `scaffold-drift.sh` changes conservative until edge cases around legacy
-  exporters and feature-owned files have broader regression coverage. Current
-  coverage includes default-managed Dockerfile drift and explicit `SKIP_FILE`
-  escape hatches for intentional domain-specific deviations.
 
 ## Version Metadata
 
