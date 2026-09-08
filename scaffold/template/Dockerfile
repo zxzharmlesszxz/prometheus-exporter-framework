@@ -32,9 +32,7 @@ EXPOSE __DEFAULT_PORT__
 
 USER nobody
 
-ENV HEALTHCHECK_URL=http://127.0.0.1:__DEFAULT_PORT__/healthz
-
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -T 2 --spider "${HEALTHCHECK_URL}" || exit 1
+    CMD wget -q -T 2 --spider http://127.0.0.1:__DEFAULT_PORT__/healthz || exit 1
 
 ENTRYPOINT ["/usr/local/bin/__PROJECT_NAME__"]

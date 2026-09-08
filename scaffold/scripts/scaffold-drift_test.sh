@@ -41,8 +41,11 @@ grep -F "FROM alpine:3.24 AS base" "$target_dir/Dockerfile" >/dev/null
 grep -F 'ARG RUNTIME_PACKAGES="ca-certificates=20260611-r0 libcrypto3=3.5.8-r0 libssl3=3.5.8-r0"' "$target_dir/Dockerfile" >/dev/null
 grep -F "FROM base" "$target_dir/Dockerfile" >/dev/null
 grep -F "COPY --from=build /src/dist/prometheus-demo-exporter /usr/local/bin/prometheus-demo-exporter" "$target_dir/Dockerfile" >/dev/null
+grep -F "HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \\" "$target_dir/Dockerfile" >/dev/null
+grep -F "    CMD wget -q -T 2 --spider http://127.0.0.1:9888/healthz || exit 1" "$target_dir/Dockerfile" >/dev/null
 grep -F 'ENTRYPOINT ["/usr/local/bin/prometheus-demo-exporter"]' "$target_dir/Dockerfile" >/dev/null
 
+# shellcheck disable=SC2016
 printf '%s\n' \
   'include Makefile' \
   'print-vars:' \
