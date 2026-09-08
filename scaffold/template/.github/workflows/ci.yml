@@ -23,6 +23,6 @@ jobs:
     uses: zxzharmlesszxz/prometheus-exporter-framework/.github/workflows/exporter-ci.yml@__FRAMEWORK_VERSION__
     with:
       project-name: __PROJECT_NAME__
-      go-version: "1.27.0"
+      go-version: "1.27.1"
       docker-platforms: "linux/amd64,linux/arm64"
     secrets: inherit

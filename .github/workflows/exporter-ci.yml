@@ -9,7 +9,7 @@ on:
       go-version:
         required: false
         type: string
-        default: "1.27.0"
+        default: "1.27.1"
       docker-platforms:
         required: false
         type: string
