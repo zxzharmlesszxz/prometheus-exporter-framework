@@ -154,7 +154,7 @@ Scaffold metadata:
   namespace:    demo_exporter
   port:         9888
   config-file:  prometheus-demo-exporter.yml
-  framework:    v0.6.2 (scaffold: v0.6.2)
+  framework:    v0.7.0 (scaffold: v0.7.0)
 ```
 
 ## Public API Surfaces
