@@ -19,7 +19,7 @@ SMOKE_BUILD_DATE ?= 2026-05-17T00:00:00Z
 SCAFFOLD_MAKEFILE ?= scaffold/Makefile
 
 .PHONY: help fmt fmt-check vet staticcheck govulncheck golangci-lint test test-race coverage coverage-check smoke check clean
-.PHONY: release-preflight release-version-check release-scaffold-pin-check release-commit-message-check push-release
+.PHONY: release-prepare release-preflight release-version-check release-scaffold-pin-check release-commit-message-check push-release
 .PHONY: docs-generate docs-check
 .PHONY: mod-tidy deps-update framework-mod-tidy framework-deps-update
 .PHONY: public-api-check public-api-update %-public-api-check %-public-api-update
@@ -122,6 +122,21 @@ smoke: ## Build and smoke-test the local binary.
 	RUN_BINARY_SMOKE=1 GO="$(GO)" $(GO) test ./smoke -run TestBinarySmoke -count=1
 
 check: fmt-check vet staticcheck golangci-lint govulncheck docs-check coverage-check smoke test-race ## Run the standard maintenance check.
+
+release-prepare: release-version-check ## Update scaffold pin, regenerate docs, and commit pre-release VERSION.
+	@git diff-index --quiet HEAD -- || { echo "worktree has uncommitted changes; commit or stash before release-prepare" >&2; exit 2; }
+	@tmp="$$(mktemp)"; \
+	awk -v version="$(VERSION)" '\
+		BEGIN { updated = 0 } \
+		$$1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" { $$2 = version; updated = 1 } \
+		{ print } \
+		END { if (!updated) exit 2 } \
+	' scaffold/template/go.mod >"$$tmp"; \
+	mv "$$tmp" scaffold/template/go.mod
+	$(MAKE) docs-generate GO="$(GO)" GOFMT="$(GOFMT)"
+	git add scaffold/template/go.mod "$(DOCS_REFERENCE)"
+	@git diff --cached --quiet --exit-code && { echo "no release preparation changes for $(VERSION)" >&2; exit 2; } || true
+	git commit -m "pre-release $(VERSION)"
 
 release-preflight: release-version-check release-scaffold-pin-check check scaffold-check-local ## Run all checks required before creating a release tag. Set VERSION=vX.Y.Z.
 

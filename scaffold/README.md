@@ -85,8 +85,10 @@ package owns domain behavior.
 ## Framework Version
 
 `template/go.mod` tracks the framework version used by newly generated
-exporters. Before publishing a new framework tag, update it to the release
-version and regenerate the generated reference docs.
+exporters. Before publishing a new framework tag, run
+`make release-prepare VERSION=v0.1.0` from the repository root to update it to
+the release version, regenerate the generated reference docs, and create the
+`pre-release v0.1.0` commit.
 
 Run `make release-preflight VERSION=v0.1.0` from the repository root before
 starting the release workflow. The preflight verifies that `template/go.mod`

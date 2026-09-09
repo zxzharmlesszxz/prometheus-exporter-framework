@@ -30,7 +30,9 @@ concrete exporter-owned after generation.
 
 Concrete exporter scaffolding lives in `scaffold/` in this repository. The
 release path is a push to the default branch whose commit subject is exactly
-`pre-release vX.Y.Z`. Push CI detects that subject, runs
+`pre-release vX.Y.Z`. Use `make release-prepare VERSION=vX.Y.Z` to update
+`scaffold/template/go.mod`, regenerate generated reference docs, and create that
+final release-preparation commit. Push CI detects the subject, runs
 `make release-preflight VERSION=<tag>`, creates an annotated module tag, and
 creates the GitHub Release. The preflight requires `scaffold/template/go.mod` to
 already point at the release version, verifies generated docs and public API
