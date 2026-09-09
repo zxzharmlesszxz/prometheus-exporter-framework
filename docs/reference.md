@@ -349,6 +349,22 @@ field FileScrapeMetricIDs.Up string
 field FileScrapeMetricIDs.Valid string
 field FlagContext.DefaultRefreshInterval time.Duration
 field FlagContext.FeatureName string
+field LastKnownGoodEntry.Key K
+field LastKnownGoodEntry.LastKnownGoodResult LastKnownGoodResult[V]
+field LastKnownGoodMetricDescs.ConsecutiveFailuresDesc *prometheus.Desc
+field LastKnownGoodMetricDescs.DataAvailableDesc *prometheus.Desc
+field LastKnownGoodMetricDescs.DataStaleDesc *prometheus.Desc
+field LastKnownGoodMetricDescs.LastSuccessTimestampDesc *prometheus.Desc
+field LastKnownGoodMetricIDs.ConsecutiveFailures string
+field LastKnownGoodMetricIDs.DataAvailable string
+field LastKnownGoodMetricIDs.DataStale string
+field LastKnownGoodMetricIDs.LastSuccessTimestampSeconds string
+field LastKnownGoodResult.Available bool
+field LastKnownGoodResult.ConsecutiveFailures uint64
+field LastKnownGoodResult.LastAttempt time.Time
+field LastKnownGoodResult.LastSuccess time.Time
+field LastKnownGoodResult.Stale bool
+field LastKnownGoodResult.Value V
 field RuntimeConfigContext.Config C
 field RuntimeConfigContext.FeatureName string
 field RuntimeConfigContext.RefreshInterval time.Duration
@@ -426,17 +442,21 @@ field TTLCacheStats.Expired uint64
 field TTLCacheStats.Hits uint64
 field TTLCacheStats.Misses uint64
 field TTLCacheStats.Sets uint64
+func CollectLastKnownGoodMetrics func[S any, V any]( ctx FeatureMetricsContext[S], ch chan<- prometheus.Metric, ids LastKnownGoodMetricIDs, result LastKnownGoodResult[V], labelValues ...string, )
 func CollectTTLCacheMetrics func[S any](ctx FeatureMetricsContext[S], ch chan<- prometheus.Metric, cache string, stats TTLCacheStats, labelValues ...string)
 func DefaultFeatureConfigFile func(featureName string) string
 func FeatureMetricName func(featureName string, namespace string, id string, specs []FeatureMetricSpec) string
 func FileScrapeMetricIDsFor func(source string) FileScrapeMetricIDs
 func FileScrapeMetricSpecs func(source string, labels []string) []FeatureMetricSpec
+func LastKnownGoodMetricIDsFor func(source string) LastKnownGoodMetricIDs
+func LastKnownGoodMetricSpecs func(source string, labels []string) []FeatureMetricSpec
 func LoadFeatureConfigFile func(featureName string, explicitPath string, target any) (string, bool, error)
 func LoadFeatureMetricDescriptors func(featureName string, namespace string, specs []FeatureMetricSpec) FeatureMetricDescriptors
 func NewContractFeature func[C any, S any](options SpecOptions, contract FeatureContract[C, S]) *Feature[C, S]
 func NewContractSnapshotFeatureSpec func[C any, S any](options SpecOptions, contract FeatureContract[C, S]) FeatureSpec[C, S]
 func NewFeature func[C any, S any](spec FeatureSpec[C, S]) *Feature[C, S]
 func NewFeatureMetrics func[S any](ctx SnapshotMetricsContext[S], specs []FeatureMetricSpec, handlers FeatureMetricHandlers[S]) SnapshotMetrics[S]
+func NewLastKnownGood func[K comparable, V any](staleAfter time.Duration) *LastKnownGood[K, V]
 func NewSnapshotCollector func[S any](options SnapshotCollectorOptions[S]) *framework.SnapshotCollector[S]
 func NewSnapshotExtensionFeature func[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) *Feature[C, S]
 func NewSnapshotExtensionFeatureSpec func[C any, S any](options SpecOptions, extension SnapshotFeatureExtension[C, S]) FeatureSpec[C, S]
@@ -467,6 +487,12 @@ method (*Feature[C, S]) RegisterCollectors func(ctx framework.FeatureContext, re
 method (*Feature[C, S]) RegisterFlags func(app *kingpin.Application)
 method (*Feature[C, S]) RuntimeConfig func() []any
 method (*Feature[C, S]) SmokeSpec func() SmokeSpec
+method (*LastKnownGood[K, V]) Delete func(key K)
+method (*LastKnownGood[K, V]) Failure func(key K, now time.Time)
+method (*LastKnownGood[K, V]) Get func(key K, now time.Time) LastKnownGoodResult[V]
+method (*LastKnownGood[K, V]) Len func() int
+method (*LastKnownGood[K, V]) Snapshot func(now time.Time) []LastKnownGoodEntry[K, V]
+method (*LastKnownGood[K, V]) Success func(key K, value V, now time.Time)
 method (*TTLCache[K, V]) Clear func()
 method (*TTLCache[K, V]) Delete func(key K)
 method (*TTLCache[K, V]) Get func(key K) (V, bool)
@@ -488,6 +514,7 @@ method (FeatureMetricDescriptors) Describe func(ch chan<- *prometheus.Desc)
 method (FeatureMetricDescriptors) Get func(id string) *prometheus.Desc
 method (FeatureMetricSpec) MetricName func(featureName string, namespace string) string
 method (FileScrapeMetricIDs) Descs func(descs FeatureMetricDescriptors) FileScrapeMetricDescs
+method (LastKnownGoodMetricIDs) Descs func(descs FeatureMetricDescriptors) LastKnownGoodMetricDescs
 method (SnapshotEngineFunc[S]) Snapshot func(ctx context.Context, now time.Time) S
 type CollectorContext[C any]
 type FeatureConfigFileFunc[C any] func(config *C) *string
@@ -506,6 +533,11 @@ type Feature[C any, S any]
 type FileScrapeMetricDescs
 type FileScrapeMetricIDs
 type FlagContext
+type LastKnownGoodEntry[K comparable, V any]
+type LastKnownGoodMetricDescs
+type LastKnownGoodMetricIDs
+type LastKnownGoodResult[V any]
+type LastKnownGood[K comparable, V any]
 type MetricScope int
 type NewCollectorFunc[S any] func(featureName string, namespace string, logger *slog.Logger, snapshotter framework.Snapshotter[S], refreshInterval time.Duration) framework.StartableCollector
 type RuntimeConfigContext[C any]

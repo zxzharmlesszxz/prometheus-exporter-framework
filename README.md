@@ -145,6 +145,8 @@ Concrete exporters can reuse small metric helpers instead of carrying local copi
 - `featurekit.FileScrapeMetricSpecs(source, labels)` for the matching source-health descriptor contract in scaffolded feature metrics
 - `featurekit.NewTTLCache[K, V](ttl)` for thread-safe feature-owned lookup caches; use `SetWithTTL` when individual entries need value-specific TTLs
 - `featurekit.TTLCacheMetricSpecs(labels)` and `featurekit.CollectTTLCacheMetrics(...)` for opt-in cache metrics with a stable `cache` label
+- `featurekit.NewLastKnownGood[K, V](staleAfter)` for thread-safe per-key last-successful-value state after transient lookup failures
+- `featurekit.LastKnownGoodMetricSpecs(source, labels)` and `featurekit.CollectLastKnownGoodMetrics(...)` for opt-in last-known-good availability, staleness, and consecutive-failure metrics
 - `NormalizeDuration(value, fallback)` for duration flags where non-positive values should fall back to defaults
 - `RegisterAndStartCollectors(ctx, registry, collectors...)` for collectors with a background `Start(context.Context)` lifecycle
 

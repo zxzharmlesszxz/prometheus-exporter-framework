@@ -164,6 +164,43 @@ label.
 - Value: cumulative total number of cache clear operations
 - Labels: `cache` plus exporter-defined labels
 
+## Last-Known-Good Pattern
+
+The framework does not register last-known-good metrics automatically. Features
+that keep stale-but-useful data after transient lookup failures can opt in with
+`featurekit.LastKnownGoodMetricSpecs` and
+`featurekit.CollectLastKnownGoodMetrics`.
+
+Use exporter-defined source names such as `registration`, `certificate`, or
+`catalog` to produce domain-specific metric names. The framework only provides
+the generic state helper and descriptor contract; each exporter decides which
+failures are transient, which failures are authoritative state changes, and
+which labels identify entries.
+
+### `<feature_namespace>_<source>_last_success_timestamp_seconds`
+
+- Type: gauge
+- Value: Unix timestamp of the last successful source refresh, or `0` when no successful data is available
+- Labels: exporter-defined
+
+### `<feature_namespace>_<source>_consecutive_failures`
+
+- Type: gauge
+- Value: current number of consecutive failed source refresh attempts
+- Labels: exporter-defined
+
+### `<feature_namespace>_<source>_data_available`
+
+- Type: gauge
+- Value: `1` when last-known-good data is available, otherwise `0`
+- Labels: exporter-defined
+
+### `<feature_namespace>_<source>_data_stale`
+
+- Type: gauge
+- Value: `1` when last-known-good data is available and older than the configured stale threshold, otherwise `0`
+- Labels: exporter-defined
+
 ## Go Runtime Metrics
 
 The framework registers the standard Prometheus Go collector.

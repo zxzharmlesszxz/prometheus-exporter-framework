@@ -33,4 +33,8 @@
 // lookups, including entries with value-specific TTLs. Use
 // TTLCacheMetricSpecs and CollectTTLCacheMetrics when a feature wants to expose
 // opt-in cache health metrics with a stable low-cardinality cache label.
+// LastKnownGood provides a separate thread-safe state helper for keeping the
+// last successful value per key after transient lookup failures. Use
+// LastKnownGoodMetricSpecs and CollectLastKnownGoodMetrics when a feature wants
+// to expose opt-in availability, staleness, and consecutive-failure metrics.
 package featurekit
