@@ -138,7 +138,7 @@ release-prepare: release-version-check ## Update scaffold pin, regenerate docs, 
 	@git diff --cached --quiet --exit-code && { echo "no release preparation changes for $(VERSION)" >&2; exit 2; } || true
 	git commit -m "pre-release $(VERSION)"
 
-release-preflight: release-version-check release-scaffold-pin-check check scaffold-check-local ## Run all checks required before creating a release tag. Set VERSION=vX.Y.Z.
+release-preflight: release-version-check release-scaffold-pin-check check public-api-check scaffold-check-local ## Run all checks required before creating a release tag. Set VERSION=vX.Y.Z.
 
 release-version-check: ## Validate VERSION for release targets.
 	@test -n "$(VERSION)" || { echo "VERSION is required, for example VERSION=v0.1.0" >&2; exit 2; }
