@@ -117,6 +117,9 @@ example, `prometheus-domain-exporter` keeps Grafana alerts in
 `examples/grafana/alerting/prometheus-domain-exporter.yml`. When this file is
 present, `examples/grafana/alerting_test.go` verifies that Grafana alert
 metadata and expressions mirror `examples/prometheus/__PROJECT_NAME__.yml`.
+The same test file also validates the rendered dashboard JSON for unresolved
+scaffold placeholders, stale Compose variables, and the `DS_PROMETHEUS`
+datasource contract.
 
 Open `http://localhost:3000` after `make compose`.
 

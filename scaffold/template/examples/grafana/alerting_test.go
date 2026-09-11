@@ -1,13 +1,17 @@
 package grafana_test
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v3"
 )
+
+var scaffoldPlaceholderPattern = regexp.MustCompile(`__[A-Z0-9_]+__`)
 
 type prometheusRuleFile struct {
 	Groups []struct {
@@ -107,6 +111,48 @@ func TestGrafanaAlertsMirrorPrometheusMetadata(t *testing.T) {
 		if !seen[name] {
 			t.Errorf("Prometheus rule %q has no Grafana counterpart", name)
 		}
+	}
+}
+
+func TestDashboardSanity(t *testing.T) {
+	const dashboardPath = "__PROJECT_NAME__.json"
+	const expectedDashboardName = "__PROJECT_NAME__"
+
+	data, err := os.ReadFile(dashboardPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dashboard map[string]any
+	if err := json.Unmarshal(data, &dashboard); err != nil {
+		t.Fatalf("dashboard JSON is invalid: %v", err)
+	}
+
+	raw := string(data)
+	if match := scaffoldPlaceholderPattern.FindString(raw); match != "" {
+		t.Fatalf("dashboard still contains scaffold placeholder %q", match)
+	}
+	for _, forbidden := range []string{
+		"COMPOSE_EXPORTER_PORT",
+		"__" + "PROJECT_NAME" + "__",
+		"__" + "FEATURE_NAME" + "__",
+		"__" + "METRIC_NAMESPACE" + "__",
+		"__" + "FEATURE_NAMESPACE" + "__",
+		"__" + "DEFAULT_PORT" + "__",
+	} {
+		if strings.Contains(raw, forbidden) {
+			t.Fatalf("dashboard contains forbidden token %q", forbidden)
+		}
+	}
+	if !strings.Contains(raw, "DS_PROMETHEUS") {
+		t.Fatalf("dashboard does not reference DS_PROMETHEUS")
+	}
+	if kind, _ := dashboard["kind"].(string); kind != "Dashboard" {
+		t.Fatalf("dashboard kind = %q, want Dashboard", kind)
+	}
+	metadata, _ := dashboard["metadata"].(map[string]any)
+	if name, _ := metadata["name"].(string); name != expectedDashboardName {
+		t.Fatalf("dashboard metadata.name = %q, want %q", name, expectedDashboardName)
 	}
 }
 
