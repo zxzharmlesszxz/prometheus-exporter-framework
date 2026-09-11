@@ -62,6 +62,7 @@ Default managed files:
   .gitignore
   .gitlab-ci.yml
   examples/grafana/alerting_test.go
+  examples/prometheus/alerting_test.go
   cmd/scaffold_main.go
   internal/exporter/scaffold_exporter.go
   internal/exporter/scaffold_exporter_test.go
@@ -160,6 +161,7 @@ default_files=(
   ".gitignore"
   ".gitlab-ci.yml"
   "examples/grafana/alerting_test.go"
+  "examples/prometheus/alerting_test.go"
   "cmd/scaffold_main.go"
   "internal/exporter/scaffold_exporter.go"
   "internal/exporter/scaffold_exporter_test.go"

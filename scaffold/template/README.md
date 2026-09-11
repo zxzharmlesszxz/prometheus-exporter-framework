@@ -65,6 +65,9 @@ The full metric contract lives in [`METRICS.md`](METRICS.md).
 The repository includes [`docker-compose.yml`](docker-compose.yml) for local testing.
 The Prometheus scrape config is embedded in Compose, while alerting rules live
 under [`examples/prometheus`](examples/prometheus).
+Prometheus alert rules must be tested in
+`examples/prometheus/tests/__PROJECT_NAME__.test.yml`; `examples/prometheus/alerting_test.go`
+verifies that every alert rule has at least one promtool rule-test entry.
 It starts a loopback-only local stack:
 
 - `exporter`
