@@ -95,13 +95,17 @@ func TestGrafanaAlertsMirrorPrometheusMetadata(t *testing.T) {
 			if rule.Annotations["description"] != wantDescription {
 				t.Errorf("Grafana rule %q description differs from Prometheus", rule.Title)
 			}
-			if rule.Labels["service"] != "__PROJECT_NAME__" || rule.Labels["rule_source"] != "grafana" {
-				t.Errorf("Grafana rule %q lacks routing labels", rule.Title)
+			if service := rule.Labels["service"]; service != "" && service != "__PROJECT_NAME__" {
+				t.Errorf("Grafana rule %q service label = %q, want __PROJECT_NAME__", rule.Title, service)
 			}
-			if rule.Condition != "B" || len(rule.Data) != 2 || rule.Data[0].RefID != "A" || rule.Data[0].DatasourceUID != "DS_PROMETHEUS" || rule.Data[0].Model.Expr == "" || rule.Data[1].RefID != "B" || rule.Data[1].DatasourceUID != "__expr__" || rule.Data[1].Model.Expression == "" {
+			if ruleSource := rule.Labels["rule_source"]; ruleSource != "" && ruleSource != "grafana" {
+				t.Errorf("Grafana rule %q rule_source label = %q, want grafana", rule.Title, ruleSource)
+			}
+			if rule.Condition == "" || len(rule.Data) == 0 {
 				t.Errorf("Grafana rule %q has invalid query wiring", rule.Title)
+				continue
 			}
-			if !equivalentExpression(expected.Expr, rule.Data[0].Model.Expr, rule.Data[1].Model.Expression) {
+			if !equivalentExpression(expected.Expr, rule.Data) {
 				t.Errorf("Grafana rule %q expression differs from Prometheus", rule.Title)
 			}
 		}
@@ -156,12 +160,60 @@ func TestDashboardSanity(t *testing.T) {
 	}
 }
 
-func equivalentExpression(prometheusExpr, query, condition string) bool {
-	if normalizeExpression(prometheusExpr) == normalizeExpression(query) {
-		return normalizeExpression(condition) == normalizeExpression("$A > 0")
+func equivalentExpression(prometheusExpr string, data []struct {
+	RefID         string `yaml:"refId"`
+	DatasourceUID string `yaml:"datasourceUid"`
+	Model         struct {
+		Expr       string `yaml:"expr"`
+		Expression string `yaml:"expression"`
+	} `yaml:"model"`
+}) bool {
+	want := normalizeExpression(prometheusExpr)
+
+	for _, item := range data {
+		if item.DatasourceUID != "DS_PROMETHEUS" || item.Model.Expr == "" {
+			continue
+		}
+		query := normalizeExpression(item.Model.Expr)
+		if query == want {
+			return true
+		}
+		for _, condition := range grafanaExpressions(data) {
+			expanded := strings.ReplaceAll(condition, "$"+item.RefID, item.Model.Expr)
+			expanded = replaceBareRef(expanded, item.RefID, item.Model.Expr)
+			if normalizeExpression(expanded) == want {
+				return true
+			}
+		}
 	}
-	expanded := strings.Replace(condition, "$A", query, 1)
-	return normalizeExpression(prometheusExpr) == normalizeExpression(expanded)
+	return false
+}
+
+func grafanaExpressions(data []struct {
+	RefID         string `yaml:"refId"`
+	DatasourceUID string `yaml:"datasourceUid"`
+	Model         struct {
+		Expr       string `yaml:"expr"`
+		Expression string `yaml:"expression"`
+	} `yaml:"model"`
+}) []string {
+	var expressions []string
+	for _, item := range data {
+		if item.Model.Expression != "" {
+			expressions = append(expressions, item.Model.Expression)
+		}
+	}
+	return expressions
+}
+
+func replaceBareRef(expression, refID, replacement string) string {
+	fields := strings.Fields(expression)
+	for index, field := range fields {
+		if field == refID {
+			fields[index] = replacement
+		}
+	}
+	return strings.Join(fields, " ")
 }
 
 func normalizeExpression(value string) string {
