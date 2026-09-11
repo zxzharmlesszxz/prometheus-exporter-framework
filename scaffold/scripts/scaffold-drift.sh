@@ -56,6 +56,7 @@ Default managed files:
   Makefile.mk
   Makefile.defaults.mk
   docker-compose.yml
+  compose_test.go
   .dockerignore
   .github/dependabot.yml
   .github/workflows/ci.yml
@@ -155,6 +156,7 @@ default_files=(
   "Makefile.mk"
   "Makefile.defaults.mk"
   "docker-compose.yml"
+  "compose_test.go"
   ".dockerignore"
   ".github/dependabot.yml"
   ".github/workflows/ci.yml"

@@ -19,6 +19,7 @@ grep -F "scaffold template must be rendered before running build or compose targ
 grep -Fx "Makefile" "$tmp/list-files.out" >/dev/null
 grep -Fx "Makefile.defaults.mk" "$tmp/list-files.out" >/dev/null
 grep -Fx "Dockerfile" "$tmp/list-files.out" >/dev/null
+grep -Fx "compose_test.go" "$tmp/list-files.out" >/dev/null
 grep -Fx ".dockerignore" "$tmp/list-files.out" >/dev/null
 grep -Fx "examples/grafana/alerting_test.go" "$tmp/list-files.out" >/dev/null
 grep -Fx "examples/prometheus/alerting_test.go" "$tmp/list-files.out" >/dev/null

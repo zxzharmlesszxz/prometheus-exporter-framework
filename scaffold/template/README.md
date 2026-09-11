@@ -68,6 +68,10 @@ under [`examples/prometheus`](examples/prometheus).
 Prometheus alert rules must be tested in
 `examples/prometheus/tests/__PROJECT_NAME__.test.yml`; `examples/prometheus/alerting_test.go`
 verifies that every alert rule has at least one promtool rule-test entry.
+`compose_test.go` validates the rendered Compose contract, including fixed
+internal exporter ports, host-port overrides through `COMPOSE_EXPORTER_HOST_PORT`,
+image override variables, Prometheus rule provisioning, Grafana dashboard
+provisioning, and Grafana alerting provisioning.
 It starts a loopback-only local stack:
 
 - `exporter`
