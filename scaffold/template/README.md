@@ -106,7 +106,14 @@ Docker Compose provisions Grafana with:
 
 - Prometheus datasource `DS_PROMETHEUS`
 - dashboards from [`examples/grafana`](examples/grafana)
+- optional alerting rules from `examples/grafana/alerting/__PROJECT_NAME__.yml`
 - default login `admin` / `admin`, unless overridden through Compose variables
+
+Grafana alerting rules must use the rendered project name as the file name. For
+example, `prometheus-domain-exporter` keeps Grafana alerts in
+`examples/grafana/alerting/prometheus-domain-exporter.yml`. When this file is
+present, `examples/grafana/alerting_test.go` verifies that Grafana alert
+metadata and expressions mirror `examples/prometheus/__PROJECT_NAME__.yml`.
 
 Open `http://localhost:3000` after `make compose`.
 
@@ -156,6 +163,17 @@ make build VERSION=v0.1.0
 make release VERSION=v0.1.0
 make release-smoke VERSION=v0.1.0
 ```
+
+Run the full local release preflight and push an annotated release tag:
+
+```bash
+make push-release VERSION=v0.1.0
+```
+
+The target requires a clean `main` worktree, verifies that the tag does not
+already exist, runs the full local check suite, pushes `main`, creates an
+annotated `VERSION` tag, and pushes that tag. The generated GitHub Actions
+workflow publishes release archives and Docker images from the tag workflow.
 
 Build and push a Docker image:
 

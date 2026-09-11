@@ -20,6 +20,7 @@ grep -Fx "Makefile" "$tmp/list-files.out" >/dev/null
 grep -Fx "Makefile.defaults.mk" "$tmp/list-files.out" >/dev/null
 grep -Fx "Dockerfile" "$tmp/list-files.out" >/dev/null
 grep -Fx ".dockerignore" "$tmp/list-files.out" >/dev/null
+grep -Fx "examples/grafana/alerting_test.go" "$tmp/list-files.out" >/dev/null
 grep -Fx "internal/__FEATURE_NAME__/scaffold_feature.go" "$tmp/list-files.out" >/dev/null
 
 "$repo_dir/scripts/render.sh" \
