@@ -42,7 +42,10 @@ if grep -R -n -E '__[A-Z0-9_]+__' "$target_dir"; then
 fi
 grep -F "BUILD_OUTPUT=dist/prometheus-demo-exporter" "$target_dir/Dockerfile" >/dev/null
 grep -F "FROM alpine:3.24 AS base" "$target_dir/Dockerfile" >/dev/null
-grep -F 'ARG RUNTIME_PACKAGES="ca-certificates=20260611-r0 libcrypto3=3.5.8-r0 libssl3=3.5.8-r0"' "$target_dir/Dockerfile" >/dev/null
+grep -F 'ARG BUILDER_PACKAGES="make"' "$target_dir/Dockerfile" >/dev/null
+grep -F 'ARG RUNTIME_PACKAGES="ca-certificates libcrypto3 libssl3"' "$target_dir/Dockerfile" >/dev/null
+grep -F "RUN apk add --no-cache --upgrade \${BUILDER_PACKAGES}" "$target_dir/Dockerfile" >/dev/null
+grep -F "RUN apk add --no-cache --upgrade \${RUNTIME_PACKAGES}" "$target_dir/Dockerfile" >/dev/null
 grep -F "FROM base" "$target_dir/Dockerfile" >/dev/null
 grep -F "COPY --from=build /src/dist/prometheus-demo-exporter /usr/local/bin/prometheus-demo-exporter" "$target_dir/Dockerfile" >/dev/null
 grep -F "HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \\" "$target_dir/Dockerfile" >/dev/null

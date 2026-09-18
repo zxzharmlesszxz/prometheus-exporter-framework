@@ -9,9 +9,9 @@ ARG BRANCH
 ARG REVISION
 ARG BUILD_USER
 ARG BUILD_DATE
-ARG BUILDER_PACKAGES="make=4.4.1-r4"
+ARG BUILDER_PACKAGES="make"
 
-RUN apk add --no-cache ${BUILDER_PACKAGES}
+RUN apk add --no-cache --upgrade ${BUILDER_PACKAGES}
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -29,8 +29,8 @@ RUN make build \
 
 FROM alpine:3.24 AS base
 
-ARG RUNTIME_PACKAGES="ca-certificates=20260611-r0 libcrypto3=3.5.8-r0 libssl3=3.5.8-r0"
-RUN apk add --no-cache ${RUNTIME_PACKAGES}
+ARG RUNTIME_PACKAGES="ca-certificates libcrypto3 libssl3"
+RUN apk add --no-cache --upgrade ${RUNTIME_PACKAGES}
 
 FROM base
 
