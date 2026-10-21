@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/prometheus/client_golang v1.25.0
-github.com/zxzharmlesszxz/prometheus-exporter-framework v0.7.3
+	github.com/zxzharmlesszxz/prometheus-exporter-framework v0.7.4
 	go.yaml.in/yaml/v3 v3.0.5
 )
 

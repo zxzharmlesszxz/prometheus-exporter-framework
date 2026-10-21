@@ -128,7 +128,7 @@ release-prepare: release-version-check ## Update scaffold pin, regenerate docs, 
 	@tmp="$$(mktemp)"; \
 	awk -v version="$(VERSION)" '\
 		BEGIN { updated = 0 } \
-		$$1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" { $$2 = version; updated = 1 } \
+		$$1 == "github.com/zxzharmlesszxz/prometheus-exporter-framework" { sub("[[:space:]]+" $$2 "$$", " " version); updated = 1 } \
 		{ print } \
 		END { if (!updated) exit 2 } \
 	' scaffold/template/go.mod >"$$tmp"; \
