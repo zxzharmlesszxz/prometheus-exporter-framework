@@ -33,16 +33,27 @@ type grafanaRuleFile struct {
 			For         string            `yaml:"for"`
 			Labels      map[string]string `yaml:"labels"`
 			Annotations map[string]string `yaml:"annotations"`
-			Data        []struct {
-				RefID         string `yaml:"refId"`
-				DatasourceUID string `yaml:"datasourceUid"`
-				Model         struct {
-					Expr       string `yaml:"expr"`
-					Expression string `yaml:"expression"`
-				} `yaml:"model"`
-			} `yaml:"data"`
+			NoDataState string            `yaml:"noDataState"`
+			Data        []grafanaQuery    `yaml:"data"`
 		} `yaml:"rules"`
 	} `yaml:"groups"`
+}
+
+type grafanaQuery struct {
+	RefID         string `yaml:"refId"`
+	DatasourceUID string `yaml:"datasourceUid"`
+	Model         struct {
+		Expr       string `yaml:"expr"`
+		Expression string `yaml:"expression"`
+		Type       string `yaml:"type"`
+		Instant    bool   `yaml:"instant"`
+		Conditions []struct {
+			Evaluator struct {
+				Type   string    `yaml:"type"`
+				Params []float64 `yaml:"params"`
+			} `yaml:"evaluator"`
+		} `yaml:"conditions"`
+	} `yaml:"model"`
 }
 
 func TestGrafanaAlertsMirrorPrometheusMetadata(t *testing.T) {
@@ -105,7 +116,7 @@ func TestGrafanaAlertsMirrorPrometheusMetadata(t *testing.T) {
 				t.Errorf("Grafana rule %q has invalid query wiring", rule.Title)
 				continue
 			}
-			if !equivalentExpression(expected.Expr, rule.Data) {
+			if !equivalentExpression(expected.Expr, rule.Condition, rule.NoDataState, rule.Data) {
 				t.Errorf("Grafana rule %q expression differs from Prometheus", rule.Title)
 			}
 		}
@@ -115,6 +126,58 @@ func TestGrafanaAlertsMirrorPrometheusMetadata(t *testing.T) {
 		if !seen[name] {
 			t.Errorf("Prometheus rule %q has no Grafana counterpart", name)
 		}
+	}
+}
+
+func TestEquivalentExpressionVariants(t *testing.T) {
+	const prometheusExpr = `up == 0`
+	tests := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{"direct query", `data: [{refId: A, datasourceUid: DS_PROMETHEUS, model: {expr: "up == 0"}}]`, true},
+		{"math expression", `data: [{refId: A, datasourceUid: DS_PROMETHEUS, model: {expr: up}}, {refId: B, datasourceUid: __expr__, model: {expression: "$A == 0"}}]`, true},
+		{"presence condition", `condition: C
+noDataState: OK
+data:
+  - refId: A
+    datasourceUid: DS_PROMETHEUS
+    model: {expr: "(up == 0) * 0 + 1", instant: true}
+  - refId: C
+    datasourceUid: __expr__
+    model:
+      type: threshold
+      expression: A
+      conditions: [{evaluator: {type: gt, params: [0]}}]`, true},
+		{"presence condition without no-data recovery", `condition: C
+noDataState: Alerting
+data:
+  - refId: A
+    datasourceUid: DS_PROMETHEUS
+    model: {expr: "(up == 0) * 0 + 1", instant: true}
+  - refId: C
+    datasourceUid: __expr__
+    model:
+      type: threshold
+      expression: A
+      conditions: [{evaluator: {type: gt, params: [0]}}]`, false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var rule struct {
+				Condition   string         `yaml:"condition"`
+				NoDataState string         `yaml:"noDataState"`
+				Data        []grafanaQuery `yaml:"data"`
+			}
+			if err := yaml.Unmarshal([]byte(test.yaml), &rule); err != nil {
+				t.Fatal(err)
+			}
+			if got := equivalentExpression(prometheusExpr, rule.Condition, rule.NoDataState, rule.Data); got != test.want {
+				t.Fatalf("equivalentExpression() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 
@@ -160,14 +223,7 @@ func TestDashboardSanity(t *testing.T) {
 	}
 }
 
-func equivalentExpression(prometheusExpr string, data []struct {
-	RefID         string `yaml:"refId"`
-	DatasourceUID string `yaml:"datasourceUid"`
-	Model         struct {
-		Expr       string `yaml:"expr"`
-		Expression string `yaml:"expression"`
-	} `yaml:"model"`
-}) bool {
+func equivalentExpression(prometheusExpr, conditionRef, noDataState string, data []grafanaQuery) bool {
 	want := normalizeExpression(prometheusExpr)
 
 	for _, item := range data {
@@ -176,6 +232,9 @@ func equivalentExpression(prometheusExpr string, data []struct {
 		}
 		query := normalizeExpression(item.Model.Expr)
 		if query == want {
+			return true
+		}
+		if item.Model.Instant && query == normalizeExpression("("+prometheusExpr+") * 0 + 1") && hasPresenceCondition(item.RefID, conditionRef, noDataState, data) {
 			return true
 		}
 		for _, condition := range grafanaExpressions(data) {
@@ -189,14 +248,7 @@ func equivalentExpression(prometheusExpr string, data []struct {
 	return false
 }
 
-func grafanaExpressions(data []struct {
-	RefID         string `yaml:"refId"`
-	DatasourceUID string `yaml:"datasourceUid"`
-	Model         struct {
-		Expr       string `yaml:"expr"`
-		Expression string `yaml:"expression"`
-	} `yaml:"model"`
-}) []string {
+func grafanaExpressions(data []grafanaQuery) []string {
 	var expressions []string
 	for _, item := range data {
 		if item.Model.Expression != "" {
@@ -204,6 +256,20 @@ func grafanaExpressions(data []struct {
 		}
 	}
 	return expressions
+}
+
+func hasPresenceCondition(queryRef, conditionRef, noDataState string, data []grafanaQuery) bool {
+	if noDataState != "OK" {
+		return false
+	}
+	for _, condition := range data {
+		if condition.RefID != conditionRef || condition.DatasourceUID != "__expr__" || condition.Model.Type != "threshold" || condition.Model.Expression != queryRef || len(condition.Model.Conditions) != 1 {
+			continue
+		}
+		evaluator := condition.Model.Conditions[0].Evaluator
+		return evaluator.Type == "gt" && len(evaluator.Params) == 1 && evaluator.Params[0] == 0
+	}
+	return false
 }
 
 func replaceBareRef(expression, refID, replacement string) string {
