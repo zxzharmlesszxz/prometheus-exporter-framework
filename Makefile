@@ -1,11 +1,11 @@
 GO ?= go
 GOFMT ?= gofmt
-STATICCHECK_VERSION ?= v0.8.1
+STATICCHECK_VERSION ?= v0.8.2
 STATICCHECK ?= $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 STATICCHECK_GOFLAGS ?= -buildvcs=false
-GOVULNCHECK_VERSION ?= v1.7.0
+GOVULNCHECK_VERSION ?= v1.9.0
 GOVULNCHECK ?= $(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-GOLANGCI_LINT_VERSION ?= v2.13.1
+GOLANGCI_LINT_VERSION ?= v2.15.0
 GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 COVERAGE_PROFILE ?= coverage.out
 COVERAGE_REPORT ?= coverage.txt

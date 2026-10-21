@@ -17,6 +17,7 @@ concurrency:
 
 env:
   COVERAGE_THRESHOLD: "90.0"
+  GO_CONTAINER_IMAGE: &go-container-image golang:1.27.3-alpine
 
 defaults:
   run:
@@ -27,7 +28,7 @@ jobs:
     name: Tag Go module
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
 
     steps:
       - name: Prepare Alpine
@@ -35,7 +36,7 @@ jobs:
         run: apk add --no-cache bash build-base ca-certificates git github-cli make perl
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -167,7 +168,7 @@ jobs:
     name: Publish GitHub release
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
     needs:
       - tag-module
 

@@ -252,10 +252,10 @@ func runServerSmokeAttempt(t *testing.T, root string, binary string, config Conf
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-waitCh:
+		case <-waitCh: //nolint:errcheck // Cleanup only waits for process termination.
 		case <-time.After(5 * time.Second):
 			_ = cmd.Process.Kill()
-			<-waitCh
+			<-waitCh //nolint:errcheck // Cleanup only waits for process termination.
 		}
 	})
 

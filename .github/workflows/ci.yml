@@ -13,6 +13,7 @@ concurrency:
 
 env:
   COVERAGE_THRESHOLD: "90.0"
+  GO_CONTAINER_IMAGE: &go-container-image golang:1.27.3-alpine
 
 defaults:
   run:
@@ -23,14 +24,14 @@ jobs:
     name: Framework
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
     steps:
       - name: Prepare Alpine
         shell: sh
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -71,7 +72,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage
           path: |
@@ -83,14 +84,14 @@ jobs:
     name: Scaffold
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
     steps:
       - name: Prepare Alpine
         shell: sh
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -102,7 +103,7 @@ jobs:
     name: Pre-release
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
     if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'pre-release ')
     outputs:
       version: ${{ steps.pre_release.outputs.version }}
@@ -112,7 +113,7 @@ jobs:
         run: apk add --no-cache bash build-base ca-certificates git make
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -138,7 +139,7 @@ jobs:
     name: Auto-release
     runs-on: ubuntu-24.04
     container:
-      image: golang:1.27.1-alpine
+      image: *go-container-image
     needs:
       - framework
       - scaffold
@@ -152,7 +153,7 @@ jobs:
         run: apk add --no-cache bash ca-certificates git github-cli
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
